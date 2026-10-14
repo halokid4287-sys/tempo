@@ -104,7 +104,7 @@ public class UpdateService
         var result = new UpdateCheckResult { CurrentVersion = CurrentVersion() };
         try
         {
-            var json = await Http.GetStringAsync(ManifestUrl, ct);
+            var json = Clean(await Http.GetStringAsync(ManifestUrl, ct));
             var m = JsonSerializer.Deserialize<UpdateManifest>(json);
             if (m == null || m.Version.Length == 0 || m.Url.Length == 0)
             { result.Error = "The update manifest is empty or malformed."; return result; }
@@ -136,7 +136,7 @@ public class UpdateService
     {
         try
         {
-            var manifestJson = await Http.GetStringAsync(ManifestUrl, ct);
+            var manifestJson = Clean(await Http.GetStringAsync(ManifestUrl, ct));
             var m = JsonSerializer.Deserialize<UpdateManifest>(manifestJson);
             if (m == null || m.Url.Length == 0) return "The update manifest is empty or malformed.";
             if (!m.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return "Refusing a non-HTTPS download URL.";
@@ -245,6 +245,13 @@ public class UpdateService
                    "Move Tempo.exe somewhere like your Desktop or Documents and try again.";
         }
     }
+
+    /// <summary>
+    /// Strips a UTF-8 byte-order mark and stray whitespace. Editors and PowerShell happily
+    /// write a BOM, and System.Text.Json rejects it outright, which would silently break
+    /// updates for everyone — so never trust the manifest to be clean.
+    /// </summary>
+    private static string Clean(string s) => s.TrimStart('﻿', '​').Trim();
 
     private static async Task<string> Sha256OfFileAsync(string path, CancellationToken ct)
     {
