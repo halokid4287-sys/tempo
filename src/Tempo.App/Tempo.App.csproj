@@ -11,7 +11,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Tempo</AssemblyName>
     <ApplicationIcon>tempo.ico</ApplicationIcon>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Product>Tempo</Product>
     <Description>Free, open PC gaming optimizer</Description>
     <Company>Tempo</Company>
@@ -32,9 +32,11 @@
     <ProjectReference Include="..\Tempo.Core\Tempo.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <!-- UI is embedded so the app ships as a single file; extracted at startup (see MainForm) -->
+    <!-- UI ships inside the exe and is served from memory at runtime (see MainForm.ServeEmbedded) -->
     <EmbeddedResource Include="ui\index.html" LogicalName="ui/index.html" />
     <EmbeddedResource Include="ui\css\app.css" LogicalName="ui/css/app.css" />
     <EmbeddedResource Include="ui\js\app.js" LogicalName="ui/js/app.js" />
+    <!-- the browser engine requests this on every page load; serve it instead of 404ing -->
+    <EmbeddedResource Include="tempo.ico" LogicalName="ui/favicon.ico" />
   </ItemGroup>
 </Project>

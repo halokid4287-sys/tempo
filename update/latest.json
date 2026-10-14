@@ -1,7 +1,7 @@
 {
-    "version":  "1.0.2",
-    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.0.2/Tempo.exe",
-    "sha256":  "49AAA3BAB7B7488C7377477F9E51B1722931D5F37BD5A2CFD13E1588BD7A51B6",
-    "notes":  "- Fixed: after updating, the new version now actually starts instead of silently exiting\n- Fixed: the outgoing version now always shuts down so the new one can take over",
+    "version":  "1.0.3",
+    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.0.3/Tempo.exe",
+    "sha256":  "81C1B032B9B6F1CFCADAB528079F4F03B2252ED33F331E6867D47BCDA43944C5",
+    "notes":  "- Fixed: the app window showed a \u0027can\u0027t reach this page\u0027 error instead of the interface\n- The interface is now served from inside the program, so file permissions can no longer break it\n- Added a startup log line recording whether the interface loaded",
     "released":  "2026-10-13"
 }

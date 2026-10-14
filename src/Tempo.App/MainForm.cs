@@ -41,13 +41,25 @@ public class MainForm : Form
             core.Settings.AreBrowserAcceleratorKeysEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
 
-            var uiDir = ExtractUi(Path.Combine(appData, "ui"));
-            core.SetVirtualHostNameToFolderMapping("app.tempo", uiDir, CoreWebView2HostResourceAccessKind.Allow);
+            // Serve the UI straight out of the .exe. The previous approach extracted the files
+            // to AppData and used a virtual-host folder mapping, but WebView2's renderer runs in
+            // a locked-down AppContainer that can't traverse into that folder, so every page load
+            // failed with ERR_ACCESS_DENIED. Answering the requests in-process sidesteps file
+            // permissions, elevation and antivirus entirely, and leaves nothing on disk.
+            core.AddWebResourceRequestedFilter("https://app.tempo/*", CoreWebView2WebResourceContext.All);
+            core.WebResourceRequested += (_, e) => ServeEmbedded(env, e);
+
+            core.NavigationCompleted += (_, e) =>
+            {
+                if (e.IsSuccess) Tempo.Core.Logging.Log.Write("ui", "interface loaded");
+                else Tempo.Core.Logging.Log.Write("ui", "interface FAILED to load: " + e.WebErrorStatus);
+            };
 
             _bridge = new Bridge(this, core);
             core.WebMessageReceived += _bridge.OnWebMessage;
 
             core.Navigate("https://app.tempo/index.html");
+            RemoveLegacyUiFolder();
         }
         catch (WebView2RuntimeNotFoundException)
         {
@@ -79,22 +91,60 @@ public class MainForm : Form
     }
 
     /// <summary>
-    /// Writes the embedded UI files to disk so WebView2 can serve them. Keeps the app a single
-    /// shareable .exe while still using a plain folder mapping. Refreshed on every launch.
+    /// Answers https://app.tempo/* from resources embedded in the executable.
+    /// Nothing is written to disk, so there are no file permissions to get wrong.
     /// </summary>
-    private static string ExtractUi(string uiDir)
+    private static void ServeEmbedded(CoreWebView2Environment env, CoreWebView2WebResourceRequestedEventArgs e)
     {
-        var asm = typeof(MainForm).Assembly;
-        foreach (var name in asm.GetManifestResourceNames())
+        try
         {
-            if (!name.StartsWith("ui/", StringComparison.Ordinal)) continue;
-            var dest = Path.Combine(uiDir, name["ui/".Length..].Replace('/', Path.DirectorySeparatorChar));
-            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            using var src = asm.GetManifestResourceStream(name)!;
-            using var outFile = File.Create(dest);
-            src.CopyTo(outFile);
+            var path = new Uri(e.Request.Uri).AbsolutePath.Trim('/');
+            if (path.Length == 0) path = "index.html";
+
+            var asm = typeof(MainForm).Assembly;
+            using var src = asm.GetManifestResourceStream("ui/" + path);
+            if (src == null)
+            {
+                Tempo.Core.Logging.Log.Write("ui", "404 " + path);
+                e.Response = env.CreateWebResourceResponse(null, 404, "Not Found", "");
+                return;
+            }
+            // CreateWebResourceResponse needs a stream it can read after this handler returns
+            var ms = new MemoryStream();
+            src.CopyTo(ms);
+            ms.Position = 0;
+            e.Response = env.CreateWebResourceResponse(ms, 200, "OK",
+                "Content-Type: " + MimeFor(path) + "\r\nCache-Control: no-cache");
         }
-        return uiDir;
+        catch (Exception ex)
+        {
+            Tempo.Core.Logging.Log.Error("ui", ex);
+            try { e.Response = env.CreateWebResourceResponse(null, 500, "Server Error", ""); } catch { }
+        }
+    }
+
+    private static string MimeFor(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".html" => "text/html; charset=utf-8",
+        ".css" => "text/css; charset=utf-8",
+        ".js" => "application/javascript; charset=utf-8",
+        ".svg" => "image/svg+xml",
+        ".png" => "image/png",
+        ".ico" => "image/x-icon",
+        ".woff2" => "font/woff2",
+        _ => "application/octet-stream"
+    };
+
+    /// <summary>Removes the folder the old extract-to-disk approach left behind.</summary>
+    private static void RemoveLegacyUiFolder()
+    {
+        try
+        {
+            var old = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Tempo", "ui");
+            if (Directory.Exists(old)) Directory.Delete(old, true);
+        }
+        catch { }
     }
 
     private void EnableDarkTitleBar()
