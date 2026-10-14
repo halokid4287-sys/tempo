@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tempo</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ======= UPDATE BANNER ======= -->
+  <div id="update-banner" style="display:none">
+    <span class="ub-dot"></span>
+    <div class="ub-text">
+      <b id="ub-title">Update available</b>
+      <div id="ub-notes"></div>
+    </div>
+    <button class="btn tiny ghost" id="ub-later">Later</button>
+    <button class="btn tiny primary" id="ub-now">Update now</button>
+  </div>
+
+  <!-- ======= SIDEBAR ======= -->
+  <nav id="sidebar">
+    <div class="logo" title="Tempo">
+      <svg viewBox="0 0 48 48" width="30" height="30"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2ee6a6"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><polygon fill="url(#lg)" points="14,8 23,8 19,22 28,22 17,41 21,26 12,26"/></svg>
+    </div>
+    <button class="nav-btn active" data-page="dashboard" title="Dashboard">
+      <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+    </button>
+    <button class="nav-btn" data-page="optimize" title="Optimize">
+      <svg viewBox="0 0 24 24"><path d="M5 3l7 2 7-2-2 7 2 7-7-2-7 2 2-7zm7 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg>
+    </button>
+    <button class="nav-btn" data-page="startup" title="Startup Apps">
+      <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 4-3 6-3 9h-8c0-3-3-5-3-9a7 7 0 0 1 7-7zm-3 18h6v2h-6z"/></svg>
+    </button>
+    <button class="nav-btn" data-page="bloatware" title="Bloatware">
+      <svg viewBox="0 0 24 24"><path d="M5 7h14l-1.2 13.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8zM9 4h6l1 2H8zM4 6h16v1.5H4z"/></svg>
+    </button>
+    <button class="nav-btn" data-page="history" title="History & Restore">
+      <svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 1-7.5 10.5l2-.7A6 6 0 1 0 12 6v3L7 5l5-4zM11 9h1.8v4.4l3.6 2.1-.9 1.5-4.5-2.6z"/></svg>
+    </button>
+    <button class="nav-btn" data-page="report" title="System Report">
+      <svg viewBox="0 0 24 24"><path d="M6 2h9l4 4v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zm8 1.5V7h3.5zM8 12h8v1.6H8zm0 4h8v1.6H8zm0-8h4v1.6H8z"/></svg>
+    </button>
+    <div class="spacer"></div>
+    <button class="nav-btn" data-page="about" title="About">
+      <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1.2 8.5h2.4V17h-2.4zM12 6.2a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg>
+    </button>
+  </nav>
+
+  <!-- ======= MAIN ======= -->
+  <main id="main">
+
+    <!-- ===== DASHBOARD ===== -->
+    <section class="page active" id="page-dashboard">
+      <header class="page-head">
+        <div>
+          <h1>Welcome to <span class="grad">Tempo</span></h1>
+          <p class="sub" id="dash-sub">Scanning your system…</p>
+        </div>
+        <button class="btn ghost" id="btn-rescan">⟳ Re-scan hardware</button>
+      </header>
+
+      <div class="dash-grid">
+        <div class="dash-left">
+          <div class="stat-row">
+            <div class="stat-card">
+              <div class="stat-ico green" id="stat-opt-ico">⚡</div>
+              <div class="stat-num" id="stat-opt">–</div>
+              <div class="stat-label">Optimizations active</div>
+              <button class="btn mini" data-goto="optimize">View</button>
+            </div>
+            <div class="stat-card">
+              <div class="stat-ico blue">🚀</div>
+              <div class="stat-num" id="stat-startup">–</div>
+              <div class="stat-label">Startup apps enabled</div>
+              <button class="btn mini" data-goto="startup">Manage</button>
+            </div>
+            <div class="stat-card">
+              <div class="stat-ico orange">📦</div>
+              <div class="stat-num" id="stat-bloat">–</div>
+              <div class="stat-label">Removable apps found</div>
+              <button class="btn mini" data-goto="bloatware">Review</button>
+            </div>
+          </div>
+
+          <h3 class="block-title">Your hardware</h3>
+          <div id="hw-list" class="hw-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+
+          <div id="advice-list"></div>
+        </div>
+
+        <div class="dash-right">
+          <div class="card gauge-card big">
+            <div class="card-head"><span class="chip-ico">▣</span> CPU USAGE <span class="right muted" id="cpu-name-mini"></span></div>
+            <div class="gauge-flex">
+              <canvas id="cpu-chart" width="340" height="110"></canvas>
+              <div class="ring-wrap"><svg class="ring" viewBox="0 0 120 120">
+                <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                <circle class="ring-val green" id="ring-cpu" cx="60" cy="60" r="52"/>
+              </svg><div class="ring-text" id="ring-cpu-txt">–</div></div>
+            </div>
+          </div>
+          <div class="gauge-pair">
+            <div class="card gauge-card">
+              <div class="card-head"><span class="chip-ico">🎮</span> GPU USAGE</div>
+              <div class="ring-wrap"><svg class="ring" viewBox="0 0 120 120">
+                <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                <circle class="ring-val blue" id="ring-gpu" cx="60" cy="60" r="52"/>
+              </svg><div class="ring-text" id="ring-gpu-txt">–</div></div>
+              <div class="gauge-foot" id="vram-foot">VRAM —</div>
+            </div>
+            <div class="card gauge-card">
+              <div class="card-head"><span class="chip-ico">▤</span> RAM USAGE</div>
+              <div class="ring-wrap"><svg class="ring" viewBox="0 0 120 120">
+                <circle class="ring-bg" cx="60" cy="60" r="52"/>
+                <circle class="ring-val orange" id="ring-ram" cx="60" cy="60" r="52"/>
+              </svg><div class="ring-text" id="ring-ram-txt">–</div></div>
+              <div class="gauge-foot" id="ram-foot">—</div>
+            </div>
+          </div>
+          <div class="card mini-foot" id="proc-foot">Processes: —</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== OPTIMIZE ===== -->
+    <section class="page" id="page-optimize">
+      <header class="page-head">
+        <div>
+          <h1>Gaming <span class="grad">Optimizations</span></h1>
+          <p class="sub">Scan first, review every change, apply only what you approve. Everything here is backed up before it's changed.</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn ghost" id="btn-opt-history" title="View and roll back previous changes">↩ Restore</button>
+          <button class="btn ghost" id="btn-opt-scan">Scan</button>
+          <button class="btn ghost" id="btn-opt-recommended" title="Selects every recommended low-risk setting. Never selects medium/high-risk items.">✓ Select recommended</button>
+          <button class="btn primary" id="btn-opt-apply" disabled>Apply selected</button>
+        </div>
+      </header>
+      <div class="legend">
+        <span class="badge impact-high">high impact</span>
+        <span class="badge impact-medium">medium</span>
+        <span class="badge impact-low">low</span>
+        <span class="badge impact-situational">situational</span>
+        <span class="badge risk-medium">medium risk</span>
+        <span class="badge risk-high">high risk</span>
+        <span class="badge kind">runs once</span>
+        <span class="badge kind-diag">check only</span>
+        <span class="right muted" id="opt-summary"></span>
+      </div>
+      <div id="opt-list" class="opt-list">
+        <div class="empty">Press <b>Scan</b> to inspect this PC. Nothing is changed during a scan.</div>
+      </div>
+    </section>
+
+    <!-- ===== STARTUP ===== -->
+    <section class="page" id="page-startup">
+      <header class="page-head">
+        <div>
+          <h1>Startup <span class="grad">Apps</span></h1>
+          <p class="sub">Apps that launch at boot and stay in the background. Toggling here works exactly like Task Manager — nothing is uninstalled, and you can re-enable anytime.</p>
+        </div>
+        <button class="btn ghost" id="btn-startup-scan">⟳ Refresh</button>
+      </header>
+      <div id="startup-list" class="opt-list"><div class="empty">Loading…</div></div>
+    </section>
+
+    <!-- ===== BLOATWARE ===== -->
+    <section class="page" id="page-bloatware">
+      <header class="page-head">
+        <div>
+          <h1>Bloatware <span class="grad">Removal</span></h1>
+          <p class="sub">Review each app before anything happens. Removal always uses official uninstall methods. Essential Windows components, drivers and runtimes are never listed.</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn ghost" id="btn-bloat-scan">Scan</button>
+          <button class="btn danger" id="btn-bloat-remove" disabled>Review & remove…</button>
+        </div>
+      </header>
+      <div id="bloat-summary-row" class="sum-row"></div>
+      <div class="filter-row" id="bloat-filters" style="display:none">
+        <button class="chip active" data-filter="all">All</button>
+        <button class="chip" data-filter="store">Store apps</button>
+        <button class="chip" data-filter="win32">Desktop programs</button>
+        <span class="filter-sep"></span>
+        <button class="chip" data-group="likely-unnecessary">likely unnecessary</button>
+        <button class="chip" data-group="resource-heavy">resource-heavy</button>
+        <button class="chip" data-group="optional">optional</button>
+        <button class="chip" data-group="keep-unless-sure">keep unless sure</button>
+        <select id="bloat-sort" title="Sort results">
+          <option value="smart">Sort: smart</option>
+          <option value="name">Sort: name</option>
+          <option value="size">Sort: size on disk</option>
+          <option value="ram">Sort: RAM in use</option>
+          <option value="startup">Sort: startup/running</option>
+          <option value="publisher">Sort: publisher</option>
+        </select>
+        <input type="search" id="bloat-search" placeholder="Search apps…">
+      </div>
+      <div class="legend">
+        <span class="badge group-safe">likely unnecessary</span>
+        <span class="badge group-opt">optional — your call</span>
+        <span class="badge group-heavy">resource-heavy</span>
+        <span class="badge group-risky">keep unless you're sure</span>
+        <span class="right muted" id="bloat-count"></span>
+      </div>
+      <div id="bloat-list" class="opt-list">
+        <div class="empty">Press <b>Scan</b> to list removable apps. Scanning changes nothing.</div>
+      </div>
+    </section>
+
+    <!-- ===== HISTORY ===== -->
+    <section class="page" id="page-history">
+      <header class="page-head">
+        <div>
+          <h1>History & <span class="grad">Restore</span></h1>
+          <p class="sub">Every change Tempo made, with its original value. Restore individual changes or a whole session.</p>
+        </div>
+        <button class="btn ghost" id="btn-history-refresh">⟳ Refresh</button>
+      </header>
+      <div id="history-list" class="opt-list"><div class="empty">No changes recorded yet.</div></div>
+    </section>
+
+    <!-- ===== REPORT ===== -->
+    <section class="page" id="page-report">
+      <header class="page-head">
+        <div>
+          <h1>System <span class="grad">Report</span></h1>
+          <p class="sub">A shareable snapshot of this PC — handy when asking for help or comparing before/after.</p>
+        </div>
+        <button class="btn primary" id="btn-report-export">Export to Desktop</button>
+      </header>
+      <div id="report-view" class="card report-card"><div class="empty">Loading…</div></div>
+    </section>
+
+    <!-- ===== ABOUT ===== -->
+    <section class="page" id="page-about">
+      <header class="page-head"><div><h1>About <span class="grad">Tempo</span></h1></div></header>
+      <div class="card about-card">
+        <p><b>Tempo</b> is a free gaming optimizer for Windows 10/11. No accounts, no subscriptions, no locked features, no ads — everything works, for everyone, forever.</p>
+        <ul>
+          <li><b>Local only.</b> All scanning and optimization happens on this PC. Nothing is uploaded, no telemetry is collected.</li>
+          <li><b>Honest.</b> Each tweak explains what it does, what to expect, and its drawbacks. Myths are labeled as myths. No fake "+40% FPS" claims.</li>
+          <li><b>Reversible.</b> Original values are saved before changes, and the History page can roll them back. Changes that can't be auto-restored (like uninstalls) warn you first.</li>
+          <li><b>Safe lists.</b> Windows components, GPU/audio drivers, runtimes and security software are never offered for removal.</li>
+        </ul>
+        <p class="muted">Works on any Windows 10 (2004+) / Windows 11 PC — Intel or AMD, NVIDIA or AMD graphics. Share the app with friends; it adapts to their hardware automatically.</p>
+      </div>
+
+      <div class="card about-card" style="margin-top:14px">
+        <div class="ver-row">
+          <div>
+            <div class="ver-now">Version <b id="about-version">…</b></div>
+            <div class="muted" id="about-update-state">Tempo checks for updates automatically when it starts.</div>
+          </div>
+          <button class="btn ghost" id="btn-check-update">Check for updates</button>
+        </div>
+        <p class="muted" style="margin-top:12px;font-size:12.5px">
+          Updates download over HTTPS and are checked against a SHA-256 checksum before anything is replaced.
+          Tempo has no paid code-signing certificate, so Windows may warn on first run — the source is public either way.
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======= MODALS ======= -->
+  <div class="modal-back" id="modal-back" style="display:none">
+    <div class="modal" id="modal">
+      <h2 id="modal-title">Confirm</h2>
+      <div id="modal-body" class="modal-body"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="modal-cancel">Cancel</button>
+        <button class="btn danger" id="modal-ok">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-back" id="progress-back" style="display:none">
+    <div class="modal">
+      <div class="progress-head">
+        <h2 id="progress-title">Working…</h2>
+        <button class="btn mini ghost" id="progress-hide" title="Hide this window — the work keeps running and you'll get a notification when it finishes">Hide</button>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="progress-log" id="progress-log"></div>
+    </div>
+  </div>
+
+  <div id="toast-wrap"></div>
+</div>
+<script src="js/app.js"></script>
+</body>
+</html>

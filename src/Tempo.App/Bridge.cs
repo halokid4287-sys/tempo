@@ -1,0 +1,272 @@
+using System.Diagnostics;
+using System.Text.Json;
+using Microsoft.Web.WebView2.Core;
+using Tempo.Core.Backup;
+using Tempo.Core.Bloatware;
+using Tempo.Core.Hardware;
+using Tempo.Core.Models;
+using Tempo.Core.Optimizations;
+using Tempo.Core.Report;
+using Tempo.Core.Updates;
+
+namespace Tempo.App;
+
+/// <summary>
+/// JSON-RPC style bridge between the HTML UI and the C# services.
+/// UI sends {id, method, params}; bridge replies {id, ok, result|error}
+/// and pushes events as {evt, data}.
+/// </summary>
+public class Bridge : IDisposable
+{
+    private readonly Control _ui;
+    private readonly CoreWebView2 _core;
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+    };
+
+    private readonly HardwareService _hw = new();
+    private readonly BackupService _backup = new();
+    private readonly OptimizationEngine _opt;
+    private readonly StartupService _startup = new();
+    private readonly BloatwareService _bloat = new();
+    private readonly ReportService _report = new();
+    private readonly DiagnosticsService _diag = new();
+    private readonly UpdateService _update = new();
+
+    private SystemInfo? _sysInfo;
+    private LiveMetricsService? _metrics;
+    private System.Threading.Timer? _metricsTimer;
+    private volatile bool _sampling;
+
+    public Bridge(Control ui, CoreWebView2 core)
+    {
+        _ui = ui;
+        _core = core;
+        _opt = new OptimizationEngine(_backup);
+    }
+
+    public async void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        string id = "";
+        try
+        {
+            using var doc = JsonDocument.Parse(e.WebMessageAsJson);
+            var root = doc.RootElement;
+            id = root.GetProperty("id").GetString() ?? "";
+            var method = root.GetProperty("method").GetString() ?? "";
+            var @params = root.TryGetProperty("params", out var p) ? p.Clone() : default;
+
+            var result = await Task.Run(() => Dispatch(method, @params));
+            Reply(id, true, result, null);
+        }
+        catch (Exception ex)
+        {
+            Tempo.Core.Logging.Log.Error("bridge", ex);
+            Reply(id, false, null, ex.Message);
+        }
+    }
+
+    private async Task<object?> Dispatch(string method, JsonElement p)
+    {
+        switch (method)
+        {
+            case "init":
+            {
+                _sysInfo = _hw.GetSystemInfo();
+                StartMetrics();
+                return new { system = _sysInfo, history = _backup.LoadHistory() };
+            }
+            case "rescan":
+            {
+                _sysInfo = _hw.GetSystemInfo();
+                return _sysInfo;
+            }
+            case "scanOptimizations":
+            {
+                _sysInfo ??= _hw.GetSystemInfo();
+                return _opt.Scan(_sysInfo);
+            }
+            case "applyOptimizations":
+            {
+                var ids = p.GetProperty("ids").EnumerateArray().Select(x => x.GetString() ?? "").ToList();
+                _sysInfo ??= _hw.GetSystemInfo();
+                var session = new BackupSession { Label = "Optimizations applied" };
+                var results = new List<ApplyResult>();
+                int n = 0;
+                try
+                {
+                    foreach (var tid in ids)
+                    {
+                        n++;
+                        var pre = "[" + n + "/" + ids.Count + "] ";
+                        results.AddRange(_opt.Apply(new[] { tid }, _sysInfo, session, msg => Push("progress", new { msg = pre + msg })));
+                        _backup.UpsertSession(session); // persist as we go — a crash never loses records
+                    }
+                }
+                finally { _backup.UpsertSession(session); }
+                _sysInfo = _hw.GetSystemInfo(); // refresh power plan state etc.
+                return new { results, session = session.Id };
+            }
+            case "listStartup":
+                return _startup.List();
+            case "setStartup":
+            {
+                var name = p.GetProperty("name").GetString() ?? "";
+                var scope = p.GetProperty("scope").GetString() ?? "";
+                var location = p.GetProperty("location").GetString() ?? "";
+                var enable = p.GetProperty("enable").GetBoolean();
+                var session = new BackupSession { Label = (enable ? "Enabled" : "Disabled") + " startup: " + name };
+                var err = _startup.SetEnabled(name, scope, location, enable, session);
+                if (err != null) throw new InvalidOperationException(err);
+                _backup.SaveSession(session);
+                return _startup.List();
+            }
+            case "scanBloatware":
+                return _bloat.Scan();
+            case "runDiagnostic":
+            {
+                var diagId = p.GetProperty("id").GetString() ?? "";
+                _sysInfo ??= _hw.GetSystemInfo();
+                return _diag.Run(diagId, _sysInfo);
+            }
+            case "uninstallApps":
+            {
+                var ids = p.GetProperty("ids").EnumerateArray().Select(x => x.GetString() ?? "").ToList();
+                bool restorePoint = p.TryGetProperty("restorePoint", out var rp) && rp.GetBoolean();
+                var session = new BackupSession { Label = "Apps removed" };
+                string? rpWarning = null;
+                if (restorePoint)
+                {
+                    Push("progress", new { msg = "Creating System Restore point first (can take ~30 s)…" });
+                    rpWarning = MaintenanceService.CreateRestorePoint("Tempo — before app removal");
+                    Push("progress", new { msg = rpWarning == null ? "Restore point created." : "Restore point: " + rpWarning });
+                }
+                var results = new List<ApplyResult>();
+                int n = 0;
+                try
+                {
+                    foreach (var appId in ids)
+                    {
+                        n++;
+                        var pre = "[" + n + "/" + ids.Count + "] ";
+                        results.Add(await _bloat.Uninstall(appId, session, msg => Push("progress", new { msg = pre + msg })));
+                        _backup.UpsertSession(session); // persist after each app — survives force-close mid-batch
+                    }
+                }
+                finally { _backup.UpsertSession(session); }
+                return new { results, restorePointWarning = rpWarning };
+            }
+            case "getHistory":
+                return _backup.LoadHistory();
+            case "restoreChange":
+            {
+                var sessionId = p.GetProperty("sessionId").GetString() ?? "";
+                var changeId = p.GetProperty("changeId").GetString() ?? "";
+                var all = _backup.LoadHistory();
+                var rec = all.FirstOrDefault(s => s.Id == sessionId)?.Changes.FirstOrDefault(c => c.Id == changeId)
+                    ?? throw new InvalidOperationException("Change record not found.");
+                if (!rec.Restorable) throw new InvalidOperationException("This change is not automatically restorable.");
+                var err = _backup.Restore(rec);
+                if (err != null) throw new InvalidOperationException(err);
+                _backup.MarkRestored(sessionId, changeId);
+                return _backup.LoadHistory();
+            }
+            case "restoreSession":
+            {
+                var sessionId = p.GetProperty("sessionId").GetString() ?? "";
+                var all = _backup.LoadHistory();
+                var session = all.FirstOrDefault(s => s.Id == sessionId)
+                    ?? throw new InvalidOperationException("Session not found.");
+                var errors = new List<string>();
+                foreach (var rec in session.Changes.Where(c => c.Restorable && !c.Restored))
+                {
+                    Push("progress", new { msg = "Restoring: " + rec.Title });
+                    var err = _backup.Restore(rec);
+                    if (err == null) _backup.MarkRestored(sessionId, rec.Id);
+                    else errors.Add(rec.Title + ": " + err);
+                }
+                return new { history = _backup.LoadHistory(), errors };
+            }
+            case "exportReport":
+            {
+                _sysInfo ??= _hw.GetSystemInfo();
+                var opts = _opt.Scan(_sysInfo);
+                var html = _report.BuildHtml(_sysInfo, opts, _backup.LoadHistory());
+                var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                var path = Path.Combine(desktop, "Tempo-Report-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".html");
+                File.WriteAllText(path, html);
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+                return new { path };
+            }
+            case "openUrl":
+            {
+                var url = p.GetProperty("url").GetString() ?? "";
+                if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                return true;
+            }
+            case "appVersion":
+                return new { version = UpdateService.CurrentVersion() };
+            case "checkUpdate":
+                return await _update.CheckAsync();
+            case "applyUpdate":
+            {
+                var err = await _update.DownloadAndApplyAsync(msg => Push("progress", new { msg }));
+                if (err != null) throw new InvalidOperationException(err);
+                UpdateService.RelaunchAfterUpdate();
+                _ui.BeginInvoke(() => { try { Application.Exit(); } catch { } });
+                return new { restarted = true };
+            }
+            default:
+                throw new InvalidOperationException("Unknown method: " + method);
+        }
+    }
+
+    // ---------- live metrics ----------
+
+    private void StartMetrics()
+    {
+        if (_metrics != null) return;
+        var vram = _sysInfo?.Gpus.FirstOrDefault()?.VramBytes ?? 0;
+        _metrics = new LiveMetricsService(vram);
+        _metricsTimer = new System.Threading.Timer(_ =>
+        {
+            if (_sampling) return;
+            _sampling = true;
+            try
+            {
+                var m = _metrics!.Sample();
+                Push("metrics", m);
+            }
+            catch { }
+            finally { _sampling = false; }
+        }, null, 500, 1000);
+    }
+
+    // ---------- plumbing ----------
+
+    private void Reply(string id, bool ok, object? result, string? error)
+        => Post(new { id, ok, result, error });
+
+    private void Push(string evt, object data)
+        => Post(new { evt, data });
+
+    private void Post(object payload)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(payload, Json);
+            if (_ui.IsHandleCreated && !_ui.IsDisposed)
+                _ui.BeginInvoke(() => { try { _core.PostWebMessageAsJson(json); } catch { } });
+        }
+        catch { }
+    }
+
+    public void Dispose()
+    {
+        _metricsTimer?.Dispose();
+        _metrics?.Dispose();
+    }
+}

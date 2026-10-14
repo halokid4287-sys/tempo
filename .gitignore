@@ -1,0 +1,15 @@
+# build output
+bin/
+obj/
+
+# published builds — the .exe ships as a GitHub Release asset, never committed
+# (it's ~69 MB; git repos should not carry binaries that change every release)
+share/
+*.zip
+
+# local/editor noise
+.vs/
+*.user
+*.suo
+Thumbs.db
+desktop.ini
