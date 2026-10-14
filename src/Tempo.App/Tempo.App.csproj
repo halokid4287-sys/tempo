@@ -15,7 +15,7 @@
     <Product>Tempo</Product>
     <Description>Free, open PC gaming optimizer</Description>
     <Company>Tempo</Company>
-    <Copyright>Free software — no license, no payment, ever.</Copyright>
+    <Copyright>Free software - no license, no payment, ever.</Copyright>
     <!-- single-file sharing: one .exe, no installer, no .NET needed on the target PC -->
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

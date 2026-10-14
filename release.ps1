@@ -44,9 +44,12 @@ if (Test-Path $manifest) {
 }
 
 Step 1 "Setting version to $Version"
-$xml = Get-Content $csproj -Raw
+# read/write as explicit UTF-8 without BOM: Get-Content/Set-Content mangle non-ASCII
+# characters in the .csproj (an em dash became 'â€”' the first time this ran)
+$utf8 = New-Object System.Text.UTF8Encoding $false
+$xml = [System.IO.File]::ReadAllText($csproj, $utf8)
 $xml = $xml -replace '<Version>[\d\.]+</Version>', "<Version>$Version</Version>"
-Set-Content $csproj $xml -Encoding UTF8 -NoNewline
+[System.IO.File]::WriteAllText($csproj, $xml, $utf8)
 
 Step 2 "Building single-file release (this takes a minute)"
 if (Test-Path $outDir) { Get-ChildItem $outDir -File | Remove-Item -Force }
@@ -75,18 +78,25 @@ if ($LASTEXITCODE -ne 0) { throw "gh release create failed - manifest NOT update
 
 Step 5 "Writing update manifest"
 New-Item -ItemType Directory (Split-Path $manifest) -Force | Out-Null
-[ordered]@{
+$json = [ordered]@{
     version  = $Version
     url      = "https://github.com/$Repo/releases/download/v$Version/Tempo.exe"
     sha256   = $sha
     notes    = $noteText
     released = (Get-Date -Format 'yyyy-MM-dd')
-} | ConvertTo-Json | Set-Content $manifest -Encoding UTF8
+} | ConvertTo-Json
+[System.IO.File]::WriteAllText($manifest, $json, $utf8)
 
 Step 6 "Pushing"
-git -C $root add -A
-git -C $root commit -m "Release $Version`n`n$noteText"
-git -C $root push
+# git writes ordinary progress and warnings to stderr, which PowerShell would otherwise
+# treat as a terminating error, so check exit codes instead.
+$ErrorActionPreference = 'Continue'
+git -C $root add -A 2>&1 | Out-Null
+git -C $root commit -m "Release $Version`n`n$noteText" 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { Write-Host "    nothing new to commit" -ForegroundColor DarkGray }
+git -C $root push 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "git push failed - the release exists but installs won't see it until the manifest is pushed." }
+$ErrorActionPreference = 'Stop'
 
 Write-Host "`nReleased $Version." -ForegroundColor Green
 Write-Host "Every existing install will offer this update next time it starts." -ForegroundColor Green
