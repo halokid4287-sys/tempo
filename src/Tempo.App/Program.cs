@@ -11,19 +11,47 @@ internal static class Program
     [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
     private const int SW_RESTORE = 9;
 
-    [STAThread]
-    static void Main()
+    private const string MutexName = @"Global\TempoOptimizerSingleInstance";
+    /// <summary>Flag passed to the freshly installed build so it waits for us to let go.</summary>
+    public const string UpdatedFlag = "--updated";
+
+    private static Mutex? _instanceLock;
+
+    /// <summary>
+    /// Hands the single-instance lock to the incoming build during a self-update.
+    /// Without this the new process would see "already running", focus our window and quit,
+    /// so the update would install but never actually start.
+    /// </summary>
+    public static void ReleaseInstanceLock()
     {
+        try { _instanceLock?.ReleaseMutex(); } catch { }
+        try { _instanceLock?.Dispose(); } catch { }
+        _instanceLock = null;
+    }
+
+    [STAThread]
+    static void Main(string[] args)
+    {
+        bool afterUpdate = args.Any(a => a.Equals(UpdatedFlag, StringComparison.OrdinalIgnoreCase));
+
         // Single instance: WebView2 cannot share its user-data folder between processes, so a
         // second launch (double-clicked desktop icon) would fail. Focus the open window instead.
-        using var mutex = new Mutex(true, @"Global\TempoOptimizerSingleInstance", out bool isFirst);
+        _instanceLock = new Mutex(true, MutexName, out bool isFirst);
+        if (!isFirst && afterUpdate)
+        {
+            // We were started BY the outgoing build; give it a moment to exit and release.
+            try { isFirst = _instanceLock.WaitOne(TimeSpan.FromSeconds(30)); }
+            catch (AbandonedMutexException) { isFirst = true; }   // it died holding the lock
+        }
         if (!isFirst)
         {
             FocusExistingWindow();
             return;
         }
 
-        // Global crash logging — "it glitched" must always leave a trace in %ProgramData%\Tempo\app.log
+        // remove the previous build left behind by a completed self-update
+        Tempo.Core.Updates.UpdateService.CleanupPrevious();
+
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
         Application.ThreadException += (_, e) =>
         {
@@ -34,15 +62,14 @@ internal static class Program
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Write("fatal", e.ExceptionObject?.ToString() ?? "unknown");
         TaskScheduler.UnobservedTaskException += (_, e) => { Log.Error("task", e.Exception); e.SetObserved(); };
 
-        // remove the previous build left behind by a completed self-update
-        Tempo.Core.Updates.UpdateService.CleanupPrevious();
-
-        Log.Write("app", "started v" + Tempo.Core.Updates.UpdateService.CurrentVersion());
+        Log.Write("app", "started v" + Tempo.Core.Updates.UpdateService.CurrentVersion()
+                         + (afterUpdate ? " (after update)" : ""));
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.Run(new MainForm());
         Log.Write("app", "exited normally");
+        ReleaseInstanceLock();
     }
 
     private static void FocusExistingWindow()

@@ -217,12 +217,20 @@ public class UpdateService
         }
     }
 
-    /// <summary>Launches the freshly installed exe. Caller should exit immediately after.</summary>
+    /// <summary>
+    /// Launches the freshly installed exe. The argument tells it that it was started by an
+    /// outgoing build, so it waits for the single-instance lock instead of assuming another
+    /// copy is already open and quitting. Caller must exit immediately after.
+    /// </summary>
     public static void RelaunchAfterUpdate()
     {
         try
         {
-            Process.Start(new ProcessStartInfo(ExePath()) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(ExePath())
+            {
+                Arguments = "--updated",
+                UseShellExecute = true
+            });
         }
         catch (Exception ex) { Log.Error("update", ex); }
     }

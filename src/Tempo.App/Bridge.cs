@@ -215,8 +215,26 @@ public class Bridge : IDisposable
             {
                 var err = await _update.DownloadAndApplyAsync(msg => Push("progress", new { msg }));
                 if (err != null) throw new InvalidOperationException(err);
+
+                // Hand the single-instance lock over BEFORE starting the new build, or it
+                // would think another copy is running and quit without ever showing a window.
+                Program.ReleaseInstanceLock();
                 UpdateService.RelaunchAfterUpdate();
-                _ui.BeginInvoke(() => { try { Application.Exit(); } catch { } });
+
+                // Shut down for real. Application.Exit() can be refused by a busy message
+                // loop or a modal dialog, which previously left the old build running while
+                // the new one waited for it, so fall back to a hard exit.
+                _ui.BeginInvoke(() =>
+                {
+                    try { Application.Exit(); } catch { }
+                    var t = new System.Windows.Forms.Timer { Interval = 2500 };
+                    t.Tick += (_, _) =>
+                    {
+                        Tempo.Core.Logging.Log.Write("update", "forcing exit so the new build can start");
+                        Environment.Exit(0);
+                    };
+                    t.Start();
+                });
                 return new { restarted = true };
             }
             default:

@@ -1,24 +1,31 @@
-using Tempo.Core.Backup;
-using Tempo.Core.Bloatware;
-using Tempo.Core.Hardware;
-using Tempo.Core.Optimizations;
+using Tempo.Core.Updates;
 
-// READ-ONLY verification after the rename.
-var si = new HardwareService().GetSystemInfo();
-Console.WriteLine($"Hardware OK: {si.Cpu.Name} | {si.Gpus.FirstOrDefault()?.Name} | plan {si.ActivePowerPlan}");
+// Full apply-path test. Runs inside the disposable bin folder: this harness replaces
+// ITSELF with the published Tempo.exe, proving download -> verify -> swap works.
+var svc = new UpdateService();
+var exe = UpdateService.ExePath();
+Console.WriteLine("running as : " + exe);
+Console.WriteLine("version    : " + UpdateService.CurrentVersion());
 
-var items = new OptimizationEngine(new BackupService()).Scan(si);
-var avail = items.Where(i => i.Available).ToList();
-Console.WriteLine($"Catalog OK: {avail.Count} available ({avail.Count(i => i.Kind == "setting")} settings, {avail.Count(i => i.Kind == "action")} actions, {avail.Count(i => i.Kind == "diagnostic")} diagnostics), {avail.Count(i => i.Applied)} applied");
+var check = await svc.CheckAsync();
+Console.WriteLine($"available  : {check.Available} ({check.CurrentVersion} -> {check.LatestVersion})");
+if (!check.Available) { Console.WriteLine("nothing to apply"); return 1; }
 
-var d = new DiagnosticsService().Run("diag-display", si);
-Console.WriteLine($"Diagnostic OK: {d.Summary}");
+Console.WriteLine("\napplying...");
+var err = await svc.DownloadAndApplyAsync(m => Console.WriteLine("   " + m));
+if (err != null) { Console.WriteLine("FAILED: " + err); return 1; }
 
-var res = new BloatwareService().Scan();
-Console.WriteLine($"Bloatware OK: {res.Apps.Count} apps, {res.Summary.RunningNow} running, {res.Summary.StartupEnabled} at startup");
+Console.WriteLine("\n--- result ---");
+var old = Path.ChangeExtension(exe, null) + ".old.exe";
+Console.WriteLine($"swapped file exists : {File.Exists(exe)}");
+Console.WriteLine($"previous kept as    : {File.Exists(old)} ({Path.GetFileName(old)})");
+var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(exe);
+Console.WriteLine($"new file version    : {fvi.FileVersion}");
+Console.WriteLine($"new file product    : {fvi.ProductName}");
+Console.WriteLine($"new file size       : {new FileInfo(exe).Length / 1048576} MB");
+Console.WriteLine($"leftover .tmp files : {Directory.GetFiles(Path.GetDirectoryName(exe)!, "*.update.tmp").Length}");
 
-Console.WriteLine($"DataDir: {BackupService.DataDir}");
-var hist = new BackupService().LoadHistory();
-Console.WriteLine($"History migrated: {hist.Count} session(s)");
-foreach (var s in hist) Console.WriteLine($"   '{s.Label}' ({s.Changes.Count} change(s)) — restorable: {s.Changes.Count(c => c.Restorable && !c.Restored)}");
-Console.WriteLine("\nRENAME VERIFIED — nothing was modified.");
+// prove CleanupPrevious removes the old copy, as it does on next startup
+UpdateService.CleanupPrevious();
+Console.WriteLine($"after cleanup, old removed : {!File.Exists(old)}");
+return 0;

@@ -1,7 +1,7 @@
 {
-    "version":  "1.0.1",
-    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.0.1/Tempo.exe",
-    "sha256":  "F6C6EE4BB54E4D403AB94ACAC79CDC7A3361A18C992FDAA8BF0B2E838438A1CE",
-    "notes":  "- Update manifest is now parsed safely even if it carries a byte-order mark\n- Release script no longer corrupts non-ASCII text in the project file",
+    "version":  "1.0.2",
+    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.0.2/Tempo.exe",
+    "sha256":  "49AAA3BAB7B7488C7377477F9E51B1722931D5F37BD5A2CFD13E1588BD7A51B6",
+    "notes":  "- Fixed: after updating, the new version now actually starts instead of silently exiting\n- Fixed: the outgoing version now always shuts down so the new one can take over",
     "released":  "2026-10-13"
 }
