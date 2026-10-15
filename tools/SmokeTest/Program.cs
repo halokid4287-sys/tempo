@@ -1,31 +1,13 @@
-using Tempo.Core.Updates;
+using Tempo.Core.Games;
+using Tempo.Core.Hardware;
 
-// Full apply-path test. Runs inside the disposable bin folder: this harness replaces
-// ITSELF with the published Tempo.exe, proving download -> verify -> swap works.
-var svc = new UpdateService();
-var exe = UpdateService.ExePath();
-Console.WriteLine("running as : " + exe);
-Console.WriteLine("version    : " + UpdateService.CurrentVersion());
-
-var check = await svc.CheckAsync();
-Console.WriteLine($"available  : {check.Available} ({check.CurrentVersion} -> {check.LatestVersion})");
-if (!check.Available) { Console.WriteLine("nothing to apply"); return 1; }
-
-Console.WriteLine("\napplying...");
-var err = await svc.DownloadAndApplyAsync(m => Console.WriteLine("   " + m));
-if (err != null) { Console.WriteLine("FAILED: " + err); return 1; }
-
-Console.WriteLine("\n--- result ---");
-var old = Path.ChangeExtension(exe, null) + ".old.exe";
-Console.WriteLine($"swapped file exists : {File.Exists(exe)}");
-Console.WriteLine($"previous kept as    : {File.Exists(old)} ({Path.GetFileName(old)})");
-var fvi = System.Diagnostics.FileVersionInfo.GetVersionInfo(exe);
-Console.WriteLine($"new file version    : {fvi.FileVersion}");
-Console.WriteLine($"new file product    : {fvi.ProductName}");
-Console.WriteLine($"new file size       : {new FileInfo(exe).Length / 1048576} MB");
-Console.WriteLine($"leftover .tmp files : {Directory.GetFiles(Path.GetDirectoryName(exe)!, "*.update.tmp").Length}");
-
-// prove CleanupPrevious removes the old copy, as it does on next startup
-UpdateService.CleanupPrevious();
-Console.WriteLine($"after cleanup, old removed : {!File.Exists(old)}");
-return 0;
+// Confirm the probe left nothing behind on the user's driver profile.
+var sys = new HardwareService().GetSystemInfo();
+var game = new GameDetectionService().Detect().First(g => g.Name.Contains("Rainbow"));
+var nv = new NvidiaDriverSettings();
+Console.WriteLine($"{game.Name} driver profile state:");
+foreach (var s in nv.ReadForGame(game, Preset.Balanced))
+{
+    var label = s.Options.FirstOrDefault(o => o.Value == s.Current)?.Label ?? s.Current;
+    Console.WriteLine($"   {s.Label,-28} {label}{(s.ReadOnly ? "   [read-only]" : "")}");
+}
