@@ -135,6 +135,7 @@ function gotoPage(name) {
   if (name === "report") renderReport();
   if (name === "history") refreshHistory();
   if (name === "startup" && STARTUP.length === 0) refreshStartup();
+  if (name === "games" && GAMES.length === 0) scanGames(true);
 }
 
 /* ---------- live metrics ---------- */
@@ -768,6 +769,271 @@ $("#btn-rescan").addEventListener("click", async () => {
 });
 
 /* ========================================================================
+   GAME OPTIMIZATION
+   ======================================================================== */
+let GAMES = [];
+let GAME = null;          // currently open game
+let GPROFILE = null;      // its settings profile
+let GPRESET = 1;          // 0 perf / 1 balanced / 2 quality
+const gEdits = new Map(); // key -> chosen value
+
+const PRESET_TEXT = [
+  ["Max performance", "Strips the most expensive effects for the highest frame rate and lowest latency. The game will look plainer."],
+  ["Balanced", "A sensible middle ground — keeps the game looking good while trimming the most expensive effects."],
+  ["Max quality", "Prioritises how the game looks. Expect lower frame rates, especially at high resolutions."],
+];
+
+async function scanGames(auto = false) {
+  const btn = $("#btn-games-scan");
+  btn.disabled = true; btn.textContent = "Scanning…";
+  if (!auto) $("#games-grid").innerHTML = `<div class="empty">Looking through your game launchers…</div>`;
+  try {
+    GAMES = await call("scanGames");
+    renderGames();
+    if (!auto) toast("Scan complete", GAMES.length + " game(s) found. Nothing was changed.");
+  } catch (e) {
+    $("#games-grid").innerHTML = `<div class="empty">Couldn't scan for games: ${esc(e.message)}</div>`;
+  } finally { btn.disabled = false; btn.textContent = "⟳ Re-scan"; }
+}
+
+function renderGames() {
+  const wrap = $("#games-grid");
+  $("#games-count").textContent = GAMES.length ? GAMES.length + " game(s) detected" : "";
+  if (!GAMES.length) {
+    wrap.innerHTML = `<div class="empty">No games detected.<br><br>Tempo looks at Steam, Epic, Ubisoft, GOG, EA, Battle.net and Xbox. If a game is missing, use <b>+ Add a game</b>.</div>`;
+    return;
+  }
+  wrap.innerHTML = GAMES.map((g, i) => `
+    <button class="game-card" data-i="${i}">
+      <span class="game-hide" data-hide="${i}" title="Hide this from the list">×</span>
+      <div class="game-top">
+        ${g.iconDataUri
+          ? `<img class="game-icon" src="${g.iconDataUri}" alt="">`
+          : `<div class="game-icon placeholder">🎮</div>`}
+        <div style="min-width:0">
+          <div class="game-name">${esc(g.name)}</div>
+          <div class="game-meta">${esc(g.source)}${g.sizeBytes ? " · " + mb(g.sizeBytes) : ""}</div>
+        </div>
+      </div>
+      <div class="game-tags">
+        ${g.hasGameSettings ? `<span class="badge group-safe">${esc(g.settingsAdapter)}</span>` : `<span class="badge kind">driver settings only</span>`}
+      </div>
+    </button>`).join("");
+
+  $$("#games-grid .game-card").forEach((c) => c.addEventListener("click", (e) => {
+    if (e.target.closest("[data-hide]")) return;
+    openGame(GAMES[+c.dataset.i]);
+  }));
+  $$("#games-grid [data-hide]").forEach((x) => x.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const g = GAMES[+x.dataset.hide];
+    try { await call("hideGame", { id: g.id }); GAMES = GAMES.filter((y) => y.id !== g.id); renderGames(); toast("Hidden", g.name + " removed from the list."); }
+    catch (err) { toast("Couldn't hide it", err.message, "err"); }
+  }));
+}
+
+async function openGame(game) {
+  GAME = game;
+  gEdits.clear();
+  $("#games-library").style.display = "none";
+  $("#game-detail").style.display = "";
+  $("#gd-name").textContent = game.name;
+  $("#gd-icon").src = game.iconDataUri || "";
+  $("#gd-icon").style.display = game.iconDataUri ? "" : "none";
+  $("#gd-sub").textContent = `${game.source}${game.sizeBytes ? " · " + mb(game.sizeBytes) : ""}`;
+  $("#gd-settings").innerHTML = `<div class="empty">Reading this game's settings…</div>`;
+  $("#gd-table").querySelector("tbody").innerHTML = "";
+  await loadGameProfile();
+}
+
+async function loadGameProfile() {
+  try {
+    GPROFILE = await call("gameProfile", { id: GAME.id, preset: GPRESET });
+    renderGameProfile();
+  } catch (e) {
+    $("#gd-settings").innerHTML = `<div class="empty">Couldn't read settings: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderGameProfile() {
+  const p = GPROFILE;
+  const [label, desc] = PRESET_TEXT[GPRESET];
+  $("#gd-preset-label").textContent = label;
+  $("#gd-preset-desc").textContent = desc;
+
+  // honest notes about this game
+  const notes = [...(p.notes || [])];
+  if (p.driverUnavailableReason) notes.push(p.driverUnavailableReason);
+  $("#gd-notes").innerHTML = notes.map((n) => {
+    const vendorBtn = p.driverUnavailableReason === n && p.driverVendor !== "NVIDIA"
+      ? ` <span class="link" id="open-vendor">Open ${esc(p.driverVendor)} software ›</span>` : "";
+    return `<div class="advice info">${esc(n)}${vendorBtn}</div>`;
+  }).join("");
+  const ov = $("#open-vendor");
+  if (ov) ov.addEventListener("click", () => call("openGpuControlPanel", { vendor: p.driverVendor }));
+
+  renderGameTable();
+  renderGameSettings();
+}
+
+/** Only rows where the suggestion differs from the current value. */
+function proposedChanges() {
+  return (GPROFILE?.settings || []).filter(
+    (s) => !s.readOnly && s.recommended != null && String(s.recommended) !== String(s.current));
+}
+
+function renderGameTable() {
+  const rows = proposedChanges();
+  const tb = $("#gd-table").querySelector("tbody");
+  $("#gd-change-count").textContent = rows.length ? `(${rows.length})` : "";
+  if (!rows.length) {
+    tb.innerHTML = `<tr><td colspan="5" class="cmp-empty">Nothing to change — this game already matches the <b>${esc(PRESET_TEXT[GPRESET][0])}</b> preset.</td></tr>`;
+    syncGameApply();
+    return;
+  }
+  tb.innerHTML = rows.map((s) => {
+    const on = gEdits.get(s.key) === String(s.recommended);
+    return `<tr>
+      <td><button class="check ${on ? "on" : ""}" data-pick="${esc(s.key)}"></button></td>
+      <td><b>${esc(s.label)}</b> ${s.source === "driver" ? `<span class="badge kind">driver</span>` : ""}<br><span class="badge impact-${s.impact}">${s.impact} impact</span></td>
+      <td class="now">${esc(labelOf(s, s.current))}</td>
+      <td class="next">${esc(labelOf(s, s.recommended))}</td>
+      <td class="why">${esc(s.description)}</td>
+    </tr>`;
+  }).join("");
+
+  $$("#gd-table [data-pick]").forEach((b) => b.addEventListener("click", () => {
+    const key = b.dataset.pick;
+    const s = GPROFILE.settings.find((x) => x.key === key);
+    if (gEdits.get(key) === String(s.recommended)) gEdits.delete(key);
+    else gEdits.set(key, String(s.recommended));
+    b.classList.toggle("on", gEdits.has(key));
+    renderGameSettings();
+    syncGameApply();
+  }));
+  syncGameApply();
+}
+
+function labelOf(s, val) {
+  const o = (s.options || []).find((x) => String(x.value) === String(val));
+  return o ? o.label : String(val);
+}
+
+function renderGameSettings() {
+  const groups = {};
+  for (const s of GPROFILE.settings) (groups[s.group] ||= []).push(s);
+  const order = ["Display", "Quality", "Effects", "Driver"];
+  const keys = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 99) % 99 - (order.indexOf(b) + 99) % 99);
+
+  $("#gd-settings").innerHTML = keys.map((g) => `
+    <div class="set-group">
+      <h3 class="block-title">${esc(g)}${g === "Driver" ? ` <span class="muted" style="font-size:12px">— ${esc(GPROFILE.driverVendor)} driver, applies to this game only</span>` : ""}</h3>
+      ${groups[g].map(settingRow).join("")}
+    </div>`).join("") || `<div class="empty">No adjustable settings found for this game.</div>`;
+
+  $$("#gd-settings [data-set]").forEach((el) => el.addEventListener("change", () => {
+    const key = el.dataset.set;
+    const s = GPROFILE.settings.find((x) => x.key === key);
+    const v = String(el.value);
+    if (v === String(s.current)) gEdits.delete(key); else gEdits.set(key, v);
+    el.closest(".set-row").classList.toggle("set-changed", gEdits.has(key));
+    renderGameTable();
+  }));
+}
+
+function settingRow(s) {
+  const val = gEdits.get(s.key) ?? String(s.current);
+  const changed = gEdits.has(s.key);
+  let control;
+  if (s.readOnly) {
+    control = `<select disabled><option>${esc(labelOf(s, s.current))}</option></select>`;
+  } else if (s.kind === "number") {
+    control = `<input type="number" data-set="${esc(s.key)}" value="${esc(val)}"${s.min != null ? ` min="${s.min}"` : ""}${s.max != null ? ` max="${s.max}"` : ""}>`;
+  } else {
+    const opts = (s.options || []).map((o) => `<option value="${esc(o.value)}"${String(o.value) === val ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+    control = `<select data-set="${esc(s.key)}">${opts || `<option>${esc(val)}</option>`}</select>`;
+  }
+  return `<div class="set-row ${s.readOnly ? "readonly" : ""} ${changed ? "set-changed" : ""}">
+    <div class="set-info">
+      <div class="set-label">${esc(s.label)}
+        <span class="badge impact-${s.impact}">${s.impact} impact</span>
+        ${s.source === "driver" ? `<span class="badge kind">driver</span>` : ""}
+      </div>
+      <div class="set-desc">${esc(s.description)}</div>
+      ${s.readOnly && s.readOnlyReason ? `<div class="set-lock">⚠ ${esc(s.readOnlyReason)}</div>` : ""}
+    </div>
+    <div class="set-control">${control}</div>
+  </div>`;
+}
+
+function syncGameApply() {
+  const b = $("#btn-gd-apply");
+  b.disabled = gEdits.size === 0;
+  b.textContent = gEdits.size ? `Apply changes (${gEdits.size})` : "Apply changes";
+}
+
+$("#btn-games-scan").addEventListener("click", () => scanGames());
+$("#btn-gd-back").addEventListener("click", () => {
+  $("#game-detail").style.display = "none";
+  $("#games-library").style.display = "";
+});
+$("#btn-gd-launch").addEventListener("click", async () => {
+  try { await call("launchGame", { id: GAME.id }); toast("Launching", GAME.name + " is starting."); }
+  catch (e) { toast("Couldn't launch it", e.message, "warn"); }
+});
+$("#gd-slider").addEventListener("input", async (e) => {
+  GPRESET = +e.target.value;
+  gEdits.clear();
+  await loadGameProfile();
+});
+$("#btn-games-add").addEventListener("click", async () => {
+  try {
+    const r = await call("pickGameExe");
+    if (!r || !r.path) return;
+    await call("addGame", { path: r.path });
+    await scanGames(true);
+    toast("Game added", "It's now in your list.");
+  } catch (e) { toast("Couldn't add it", e.message, "err"); }
+});
+
+$("#btn-gd-apply").addEventListener("click", async () => {
+  const picked = [...gEdits.entries()].map(([k, v]) => {
+    const s = GPROFILE.settings.find((x) => x.key === k);
+    return { s, v };
+  });
+  const driverCount = picked.filter((x) => x.s.source === "driver").length;
+  const gameCount = picked.length - driverCount;
+  const body = `
+    <p>These changes will be made for <b>${esc(GAME.name)}</b> only — no other game and no Windows settings are touched.</p>
+    <ul>${picked.map(({ s, v }) => `<li><b>${esc(s.label)}</b>: ${esc(labelOf(s, s.current))} → <b>${esc(labelOf(s, v))}</b>${s.source === "driver" ? " <span class='badge kind'>driver</span>" : ""}</li>`).join("")}</ul>
+    ${gameCount ? `<p class="muted">The game's settings file is copied first, so you can undo this from <b>History &amp; Restore</b>.</p>` : ""}
+    ${driverCount ? `<p class="muted">Driver changes go into this game's own ${esc(GPROFILE.driverVendor)} profile and are recorded for undo too.</p>` : ""}
+    ${(GPROFILE.notes || []).filter((n) => n.toLowerCase().includes("close")).map((n) => `<div class="warn-box">⚠ ${esc(n)}</div>`).join("")}`;
+  const ok = await confirmModal(`Apply ${picked.length} change${picked.length > 1 ? "s" : ""} to ${GAME.name}?`, body, "Apply now", false);
+  if (!ok) return;
+
+  progressOpen("Applying settings to " + GAME.name + "…");
+  progressSetTotal(picked.length + 1);
+  try {
+    const values = Object.fromEntries(gEdits);
+    const r = await call("applyGameSettings", { id: GAME.id, values });
+    (r.applied || []).forEach((a) => progressLog("✓ " + a, "ok"));
+    (r.skipped || []).forEach((s) => progressLog("skipped: " + s, "err"));
+    if (r.error) progressLog("✗ " + r.error, "err");
+    progressLog(r.success ? `Done — ${r.changed} change(s) applied.` : "Nothing was changed.", r.success ? "ok" : "err");
+    progressClose(r.error || (r.skipped || []).length ? 4000 : 900);
+    if (r.success) {
+      toast("Applied", `${r.changed} change(s) for ${GAME.name}.${r.backupPath ? " Original file saved." : ""}`);
+      gEdits.clear();
+      await loadGameProfile();
+    } else toast("Couldn't apply", r.error || "No changes were made.", "err");
+  } catch (e) {
+    progressClose(0);
+    toast("Apply failed", e.message, "err");
+  }
+});
+
+/* ========================================================================
    UPDATES
    ======================================================================== */
 let UPDATE = null;
@@ -881,6 +1147,11 @@ function mockCall(method, params) {
     case "restoreChange": case "restoreSession": return delay({ history: [], errors: [] }, 400);
     case "exportReport": return delay({ path: "C:\\Users\\you\\Desktop\\Tempo-Report.html" });
     case "openUrl": return delay(true, 10);
+    case "scanGames": return delay(MOCK_GAMES, 700);
+    case "gameProfile": return delay(MOCK_GPROFILE, 500);
+    case "applyGameSettings": return delay({ success: true, changed: Object.keys(params.values).length, applied: Object.keys(params.values), skipped: [], backupPath: "C:\\…\\backup.ini" }, 1200);
+    case "hideGame": case "addGame": case "launchGame": case "openGpuControlPanel": return delay(true, 100);
+    case "pickGameExe": return delay({ path: "" }, 100);
     case "appVersion": return delay({ version: "1.0.0" });
     case "checkUpdate": return delay({ available: true, currentVersion: "1.0.0", latestVersion: "1.1.0", notes: "- Faster bloatware scan\n- Fixed uninstall progress", released: "2026-10-13", canSelfUpdate: true, error: null, blocked: null }, 800);
     case "applyUpdate": return delay({ restarted: true }, 2000);
@@ -930,4 +1201,25 @@ const MOCK_BLOAT = [
 const MOCK_BLOAT_SUMMARY = { totalApps: 2, totalSizeBytes: 1.55 * 1073741824, startupEnabled: 1, runningNow: 1, runningRamBytes: 480 * 1048576, cleanupBytes: 2.3 * 1073741824, topRamApps: ["McAfee LiveSafe — 480 MB · 2.1% CPU"], topDiskApps: ["McAfee LiveSafe — 1.2 GB", "Candy Crush Saga — 350 MB"], cleanupLines: [] };
 
 /* start after all declarations (incl. mock data) are in place */
+const MOCK_GAMES = [
+  { id: "steam:359550", name: "Tom Clancy's Rainbow Six Siege", source: "Steam", sizeBytes: 48.4 * 1073741824, iconDataUri: null, hasGameSettings: true, settingsAdapter: "Rainbow Six Siege" },
+  { id: "epic:fortnite", name: "Fortnite", source: "Epic", sizeBytes: 61.6 * 1073741824, iconDataUri: null, hasGameSettings: true, settingsAdapter: "Unreal Engine" },
+  { id: "steam:945360", name: "Among Us", source: "Steam", sizeBytes: 1.1 * 1073741824, iconDataUri: null, hasGameSettings: true, settingsAdapter: "Unity" },
+  { id: "steam:4000", name: "Garry's Mod", source: "Steam", sizeBytes: 6.8 * 1073741824, iconDataUri: null, hasGameSettings: true, settingsAdapter: "Source Engine" },
+  { id: "steam:236390", name: "War Thunder", source: "Steam", sizeBytes: 86 * 1073741824, iconDataUri: null, hasGameSettings: false, settingsAdapter: "" },
+];
+const MOCK_GPROFILE = {
+  game: MOCK_GAMES[0], configPath: "C:\Users\you\Documents\My Games\Rainbow Six - Siege\GameSettings.ini",
+  driverVendor: "NVIDIA", driverSettingsAvailable: true, driverUnavailableReason: null,
+  notes: ["Close Rainbow Six Siege before applying — it rewrites this file when it exits, which would undo the changes."],
+  settings: [
+    { key: "DISPLAY_SETTINGS/VSync", label: "V-Sync", group: "Display", kind: "choice", current: "1", recommended: "0", impact: "medium", source: "game", readOnly: false, description: "Locks frame output to your monitor to stop tearing, at the cost of input latency.", options: [{ value: "0", label: "Off" }, { value: "1", label: "On (1 frame)" }] },
+    { key: "CUSTOM_QUALITY/Shadow", label: "Shadow quality", group: "Quality", kind: "choice", current: "4", recommended: "2", impact: "high", source: "game", readOnly: false, description: "One of the most expensive settings in the game. Lowering it is usually the biggest single FPS win.", options: [{ value: "0", label: "Low" }, { value: "2", label: "High" }, { value: "4", label: "Ultra" }] },
+    { key: "DISPLAY/NVReflex", label: "NVIDIA Reflex", group: "Display", kind: "choice", current: "1", recommended: "2", impact: "high", source: "game", readOnly: false, description: "Cuts input latency by keeping the CPU from running ahead of the GPU.", options: [{ value: "0", label: "Off" }, { value: "1", label: "On" }, { value: "2", label: "On + Boost" }] },
+    { key: "drv:274011249", label: "Power management mode", group: "Driver", kind: "choice", current: "0", recommended: "1", impact: "medium", source: "driver", readOnly: false, description: "Keeps the GPU at high clocks instead of dropping them between frames.", options: [{ value: "0", label: "Normal (driver decides)" }, { value: "1", label: "Prefer maximum performance" }] },
+    { key: "drv:277043593", label: "Max frame rate (driver)", group: "Driver", kind: "number", current: "0", recommended: null, impact: "medium", source: "driver", readOnly: true, readOnlyReason: "Your NVIDIA driver won't let other programs set this one. Use the NVIDIA app, or the game's own frame rate limit.", description: "Caps frames at the driver level.", options: [] },
+  ],
+};
+
+/* start once every declaration above exists */
 boot();

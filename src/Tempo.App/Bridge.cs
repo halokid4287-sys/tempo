@@ -6,6 +6,7 @@ using Tempo.Core.Bloatware;
 using Tempo.Core.Hardware;
 using Tempo.Core.Models;
 using Tempo.Core.Optimizations;
+using Tempo.Core.Games;
 using Tempo.Core.Report;
 using Tempo.Core.Updates;
 
@@ -34,6 +35,9 @@ public class Bridge : IDisposable
     private readonly ReportService _report = new();
     private readonly DiagnosticsService _diag = new();
     private readonly UpdateService _update = new();
+    private readonly GameDetectionService _games = new();
+    private readonly GameSettingsService _gameSettings;
+    private List<DetectedGame> _gameCache = new();
 
     private SystemInfo? _sysInfo;
     private LiveMetricsService? _metrics;
@@ -45,6 +49,7 @@ public class Bridge : IDisposable
         _ui = ui;
         _core = core;
         _opt = new OptimizationEngine(_backup);
+        _gameSettings = new GameSettingsService(_backup);
     }
 
     public async void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -207,6 +212,62 @@ public class Bridge : IDisposable
                     Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
                 return true;
             }
+            // ---------------- game optimization ----------------
+            case "scanGames":
+            {
+                var games = _games.Detect();
+                foreach (var g in games) g.IconDataUri = ExtractIcon(g.Exe);
+                _gameCache = games;
+                return games;
+            }
+            case "gameProfile":
+            {
+                var id = p.GetProperty("id").GetString() ?? "";
+                var preset = (Preset)(p.TryGetProperty("preset", out var pr) ? pr.GetInt32() : 1);
+                var game = FindGame(id);
+                _sysInfo ??= _hw.GetSystemInfo();
+                return _gameSettings.BuildProfile(game, _sysInfo, preset);
+            }
+            case "applyGameSettings":
+            {
+                var id = p.GetProperty("id").GetString() ?? "";
+                var game = FindGame(id);
+                _sysInfo ??= _hw.GetSystemInfo();
+                var values = new Dictionary<string, string>();
+                foreach (var kv in p.GetProperty("values").EnumerateObject())
+                    values[kv.Name] = kv.Value.ValueKind == JsonValueKind.String ? kv.Value.GetString() ?? "" : kv.Value.ToString();
+                return _gameSettings.Apply(game, _sysInfo, values, msg => Push("progress", new { msg }));
+            }
+            case "addGame":
+            {
+                var path = p.GetProperty("path").GetString() ?? "";
+                _games.AddManual(path);
+                return true;
+            }
+            case "hideGame":
+            {
+                _games.Hide(p.GetProperty("id").GetString() ?? "");
+                return true;
+            }
+            case "pickGameExe":
+            {
+                var path = PickExecutable();
+                return new { path };
+            }
+            case "launchGame":
+            {
+                var game = FindGame(p.GetProperty("id").GetString() ?? "");
+                var target = game.LaunchUri.Length > 0 ? game.LaunchUri : game.Exe;
+                if (target.Length == 0) throw new InvalidOperationException("Tempo doesn't know how to launch this one.");
+                Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+                return true;
+            }
+            case "openGpuControlPanel":
+            {
+                var vendor = p.GetProperty("vendor").GetString() ?? "";
+                OpenVendorPanel(vendor);
+                return true;
+            }
             case "appVersion":
                 return new { version = UpdateService.CurrentVersion() };
             case "checkUpdate":
@@ -261,6 +322,73 @@ public class Bridge : IDisposable
             catch { }
             finally { _sampling = false; }
         }, null, 500, 1000);
+    }
+
+    // ---------- game helpers ----------
+
+    private DetectedGame FindGame(string id)
+    {
+        var g = _gameCache.FirstOrDefault(x => x.Id == id);
+        if (g == null)
+        {
+            _gameCache = _games.Detect();
+            g = _gameCache.FirstOrDefault(x => x.Id == id);
+        }
+        return g ?? throw new InvalidOperationException("That game is no longer installed. Re-scan to refresh the list.");
+    }
+
+    /// <summary>
+    /// Pulls the icon straight out of the game's own executable. Entirely local —
+    /// Tempo never downloads cover art, so the no-network promise still holds.
+    /// </summary>
+    private static string? ExtractIcon(string exe)
+    {
+        if (string.IsNullOrWhiteSpace(exe) || !File.Exists(exe)) return null;
+        try
+        {
+            using var ico = Icon.ExtractAssociatedIcon(exe);
+            if (ico == null) return null;
+            using var bmp = ico.ToBitmap();
+            using var ms = new MemoryStream();
+            bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            return "data:image/png;base64," + Convert.ToBase64String(ms.ToArray());
+        }
+        catch { return null; }
+    }
+
+    private string? PickExecutable()
+    {
+        string? chosen = null;
+        _ui.Invoke(() =>
+        {
+            using var dlg = new OpenFileDialog
+            {
+                Title = "Choose the game's main program",
+                Filter = "Programs (*.exe)|*.exe",
+                CheckFileExists = true,
+            };
+            if (dlg.ShowDialog() == DialogResult.OK) chosen = dlg.FileName;
+        });
+        return chosen;
+    }
+
+    private static void OpenVendorPanel(string vendor)
+    {
+        // Launch the vendor's own tool rather than pretending Tempo can set these.
+        var candidates = vendor switch
+        {
+            "NVIDIA" => new[] { "nvcplui.exe", @"C:\Program Files\NVIDIA Corporation\NVIDIA app\CEF\NVIDIA app.exe" },
+            "AMD" => new[] { @"C:\Program Files\AMD\CNext\CNext\RadeonSoftware.exe", "RadeonSoftware.exe" },
+            "Intel" => new[] { "IntelGraphicsSoftware.exe", "IntelArcControl.exe" },
+            _ => Array.Empty<string>(),
+        };
+        foreach (var c in candidates)
+        {
+            try { Process.Start(new ProcessStartInfo(c) { UseShellExecute = true }); return; }
+            catch { }
+        }
+        // fall back to the Windows graphics settings page
+        try { Process.Start(new ProcessStartInfo("ms-settings:display-advancedgraphics") { UseShellExecute = true }); } catch { }
     }
 
     // ---------- plumbing ----------

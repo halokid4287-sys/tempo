@@ -31,6 +31,9 @@
     <button class="nav-btn" data-page="optimize" title="Optimize">
       <svg viewBox="0 0 24 24"><path d="M5 3l7 2 7-2-2 7 2 7-7-2-7 2 2-7zm7 5a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg>
     </button>
+    <button class="nav-btn" data-page="games" title="Game Optimization">
+      <svg viewBox="0 0 24 24"><path d="M7 7h10a5 5 0 0 1 4.9 4l1 5a2.6 2.6 0 0 1-4.6 2.1L16 16H8l-2.3 2.1A2.6 2.6 0 0 1 1.1 16l1-5A5 5 0 0 1 7 7zm-.5 3v2h-2v1.6h2v2H8v-2h2V12H8v-2zm9.5.6a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4zm2.4 2.6a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg>
+    </button>
     <button class="nav-btn" data-page="startup" title="Startup Apps">
       <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 4-3 6-3 9h-8c0-3-3-5-3-9a7 7 0 0 1 7-7zm-3 18h6v2h-6z"/></svg>
     </button>
@@ -152,6 +155,72 @@
       </div>
       <div id="opt-list" class="opt-list">
         <div class="empty">Press <b>Scan</b> to inspect this PC. Nothing is changed during a scan.</div>
+      </div>
+    </section>
+
+    <!-- ===== GAME OPTIMIZATION ===== -->
+    <section class="page" id="page-games">
+
+      <!-- library view -->
+      <div id="games-library">
+        <header class="page-head">
+          <div>
+            <h1>Game <span class="grad">Optimization</span></h1>
+            <p class="sub">Games found on this PC. Pick one to tune its settings — each game is changed on its own, and nothing is touched until you apply.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn ghost" id="btn-games-add">+ Add a game</button>
+            <button class="btn ghost" id="btn-games-scan">⟳ Re-scan</button>
+          </div>
+        </header>
+        <div class="legend">
+          <span class="right muted" id="games-count"></span>
+        </div>
+        <div id="games-grid" class="games-grid">
+          <div class="empty">Looking for installed games…</div>
+        </div>
+      </div>
+
+      <!-- per-game view -->
+      <div id="game-detail" style="display:none">
+        <header class="page-head">
+          <div class="gd-title">
+            <img id="gd-icon" class="gd-icon" alt="">
+            <div>
+              <h1 id="gd-name">Game</h1>
+              <p class="sub" id="gd-sub"></p>
+            </div>
+          </div>
+          <div class="head-actions">
+            <button class="btn ghost" id="btn-gd-back">‹ All games</button>
+            <button class="btn ghost" id="btn-gd-launch">▶ Play</button>
+            <button class="btn primary" id="btn-gd-apply" disabled>Apply changes</button>
+          </div>
+        </header>
+
+        <div class="card slider-card">
+          <div class="slider-head">
+            <span>Performance</span>
+            <b id="gd-preset-label">Balanced</b>
+            <span>Quality</span>
+          </div>
+          <input type="range" id="gd-slider" min="0" max="2" step="1" value="1">
+          <div class="slider-ticks"><span>Max performance</span><span>Balanced</span><span>Max quality</span></div>
+          <p class="muted" id="gd-preset-desc">A sensible middle ground — keeps the game looking good while trimming the most expensive effects.</p>
+        </div>
+
+        <div id="gd-notes"></div>
+
+        <h3 class="block-title">Proposed changes <span class="muted" id="gd-change-count"></span></h3>
+        <div class="table-wrap">
+          <table class="cmp-table" id="gd-table">
+            <thead><tr><th style="width:34px"></th><th>Setting</th><th>Now</th><th>Suggested</th><th>What it does</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <h3 class="block-title">All settings</h3>
+        <div id="gd-settings"></div>
       </div>
     </section>
 
