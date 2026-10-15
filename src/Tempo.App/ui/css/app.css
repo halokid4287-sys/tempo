@@ -517,3 +517,38 @@ h1 { font-size: 27px; font-weight: 700; letter-spacing: -.3px; color: #fff; }
 .set-control select:focus, .set-control input:focus { border-color: var(--green); }
 .set-control select:disabled, .set-control input:disabled { opacity: .5; cursor: not-allowed; }
 .set-changed select, .set-changed input { border-color: var(--green); box-shadow: 0 0 0 1px rgba(46,230,166,.25); }
+
+/* ===================== What's new ===================== */
+.modal.whatsnew { width: min(520px, 90vw); text-align: center; padding-top: 30px; }
+.wn-spark {
+  margin: 0 auto 14px; width: 74px; height: 74px; border-radius: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, rgba(46,230,166,.16), rgba(56,189,248,.16));
+  border: 1px solid rgba(46,230,166,.3);
+  filter: drop-shadow(0 0 18px rgba(46,230,166,.3));
+  animation: wnPop .5s cubic-bezier(.3,1.5,.5,1) both;
+}
+@keyframes wnPop { from { transform: scale(.5) rotate(-12deg); opacity: 0; } }
+.modal.whatsnew h2 { font-size: 21px; margin-bottom: 6px; }
+.wn-sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+.wn-list {
+  text-align: left; list-style: none; margin: 0 0 4px; padding: 0;
+  max-height: 46vh; overflow-y: auto;
+}
+.wn-list li {
+  position: relative; padding: 11px 14px 11px 40px; margin-bottom: 8px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 11px;
+  font-size: 13.5px; line-height: 1.5; color: var(--text);
+  animation: fadeUp .35s ease both;
+}
+.wn-list li::before {
+  content: "✦"; position: absolute; left: 14px; top: 11px; color: var(--green); font-size: 13px;
+}
+.wn-list li:nth-child(1) { animation-delay: .05s; }
+.wn-list li:nth-child(2) { animation-delay: .10s; }
+.wn-list li:nth-child(3) { animation-delay: .15s; }
+.wn-list li:nth-child(4) { animation-delay: .20s; }
+.wn-list li:nth-child(5) { animation-delay: .25s; }
+.wn-list li:nth-child(6) { animation-delay: .30s; }
+.modal.whatsnew .modal-actions { justify-content: center; margin-top: 18px; }
+.modal.whatsnew .btn { padding: 10px 34px; }

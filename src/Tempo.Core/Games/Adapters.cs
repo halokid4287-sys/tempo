@@ -401,7 +401,12 @@ public class MinecraftAdapter : IGameSettingsAdapter
 
     public void Write(string cfg, Dictionary<string, string> values)
     {
-        var lines = File.ReadAllLines(cfg).ToList();
+        // preserve the file's own line endings and trailing newline — Minecraft reads this back
+        var original = File.ReadAllText(cfg);
+        var nl = original.Contains("\r\n") ? "\r\n" : "\n";
+        var trailing = original.EndsWith('\n');
+        var lines = original.Replace("\r\n", "\n").TrimEnd('\n').Split('\n').ToList();
+
         foreach (var (k, v) in values)
         {
             bool found = false;
@@ -412,6 +417,6 @@ public class MinecraftAdapter : IGameSettingsAdapter
             }
             if (!found) lines.Add(k + ":" + v);
         }
-        File.WriteAllLines(cfg, lines);
+        File.WriteAllText(cfg, string.Join(nl, lines) + (trailing ? nl : ""), new System.Text.UTF8Encoding(false));
     }
 }

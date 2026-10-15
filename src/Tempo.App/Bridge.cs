@@ -270,6 +270,20 @@ public class Bridge : IDisposable
             }
             case "appVersion":
                 return new { version = UpdateService.CurrentVersion() };
+            case "whatsNew":
+            {
+                // only after an actual version change, never on a first install
+                var previous = UpdateService.ConsumeVersionChange();
+                if (previous == null) return new { show = false };
+                var info = await _update.CheckAsync();
+                return new
+                {
+                    show = true,
+                    from = previous,
+                    version = UpdateService.CurrentVersion(),
+                    notes = info.Error == null ? info.Notes : "",
+                };
+            }
             case "checkUpdate":
                 return await _update.CheckAsync();
             case "applyUpdate":

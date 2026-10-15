@@ -234,6 +234,37 @@ public class BackupService
                     Hardware.HardwareService.RunCapture("netsh", "int tcp set global autotuninglevel=" + rec.OldValue.ToLowerInvariant(), 8000);
                     return null;
                 }
+                case "game-config":
+                {
+                    // OldValue is the copy taken before the change; Target is the real config.
+                    if (string.IsNullOrWhiteSpace(rec.OldValue)) return "No saved copy of this game's settings file was recorded.";
+                    if (!File.Exists(rec.OldValue))
+                        return "The saved copy of this game's settings file is no longer on disk, so it can't be put back.";
+                    try
+                    {
+                        var exe = Path.GetFileNameWithoutExtension(rec.Target);
+                        // a running game rewrites its config on exit and would undo the restore
+                        foreach (var p in System.Diagnostics.Process.GetProcesses())
+                        {
+                            using (p)
+                            {
+                                if (!string.IsNullOrEmpty(rec.Title) &&
+                                    rec.Title.Contains(p.ProcessName, StringComparison.OrdinalIgnoreCase) &&
+                                    p.ProcessName.Length > 4)
+                                    return "That game is running. Close it first, then restore — otherwise it would overwrite the file again on exit.";
+                            }
+                        }
+                    }
+                    catch { }
+                    File.Copy(rec.OldValue, rec.Target, true);
+                    return null;
+                }
+                case "nvidia-drs":
+                {
+                    // OldValue null/empty means the setting was at the driver default.
+                    var err = new Games.NvidiaDriverSettings().Restore(rec.Target, rec.OldValue);
+                    return err;
+                }
                 default:
                     return "This type of change (" + rec.Type + ") cannot be automatically restored.";
             }

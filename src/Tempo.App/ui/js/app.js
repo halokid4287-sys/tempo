@@ -1067,6 +1067,24 @@ async function checkForUpdate(manual = false) {
   }
 }
 
+/** Shown once, the first time Tempo opens on a newer version. */
+async function showWhatsNew() {
+  try {
+    const r = await call("whatsNew");
+    if (!r || !r.show) return;
+    $("#wn-title").textContent = `Tempo is now ${r.version}`;
+    $("#wn-sub").textContent = r.from
+      ? `Updated from ${r.from} — here's what changed.`
+      : "Here's what changed.";
+    const lines = (r.notes || "").split("\n").map((l) => l.replace(/^[-*]\s*/, "").trim()).filter(Boolean);
+    $("#wn-list").innerHTML = lines.length
+      ? lines.map((l) => `<li>${esc(l)}</li>`).join("")
+      : `<li>Various improvements and fixes.</li>`;
+    $("#whatsnew-back").style.display = "flex";
+  } catch { /* never block startup over a changelog */ }
+}
+$("#wn-close").addEventListener("click", () => { $("#whatsnew-back").style.display = "none"; });
+
 function showUpdateBanner(r) {
   $("#ub-title").textContent = `Tempo ${r.latestVersion} is available — you're on ${r.currentVersion}`;
   $("#ub-notes").textContent = r.canSelfUpdate ? (r.notes || "") : (r.blocked || "");
@@ -1124,6 +1142,7 @@ async function boot() {
     const v = await call("appVersion");
     $("#about-version").textContent = v.version;
   } catch { }
+  showWhatsNew();
   setTimeout(() => checkForUpdate(false), 2500);
 }
 
@@ -1153,6 +1172,7 @@ function mockCall(method, params) {
     case "hideGame": case "addGame": case "launchGame": case "openGpuControlPanel": return delay(true, 100);
     case "pickGameExe": return delay({ path: "" }, 100);
     case "appVersion": return delay({ version: "1.0.0" });
+    case "whatsNew": return delay({ show: true, from: "1.0.3", version: "1.1.0", notes: ["- NEW: Game Optimization tab", "- Finds your installed games automatically", "- Per-game NVIDIA driver settings", "- Everything is undoable"].join("\n") }, 300);
     case "checkUpdate": return delay({ available: true, currentVersion: "1.0.0", latestVersion: "1.1.0", notes: "- Faster bloatware scan\n- Fixed uninstall progress", released: "2026-10-13", canSelfUpdate: true, error: null, blocked: null }, 800);
     case "applyUpdate": return delay({ restarted: true }, 2000);
   }

@@ -181,6 +181,22 @@ public unsafe class NvidiaDriverSettings
 
             var saveRc = Save(s);
             if (saveRc != 0) throw new InvalidOperationException("The driver rejected saving the profile: " + Explain(saveRc));
+
+            // Read every value back. Never tell someone a setting was applied without
+            // confirming the driver actually kept it.
+            foreach (var (key, raw) in values)
+            {
+                if (!key.StartsWith("drv:") || !uint.TryParse(key[4..], out var id)) continue;
+                if (!uint.TryParse(raw, out var want)) continue;
+                if (applied.All(a => !a.Contains($"0x{id:X8}"))) continue;
+                var got = GetSetting(s, profile, id);
+                if (got != want)
+                {
+                    applied.RemoveAll(a => a.Contains($"0x{id:X8}"));
+                    failures.Add($"0x{id:X8}: the driver did not keep the new value");
+                    Log.Write("nvapi", $"verify 0x{id:X8} failed: wanted {want}, read back {(got?.ToString() ?? "nothing")}");
+                }
+            }
         });
         // Never report success for settings the driver refused.
         if (failures.Count > 0 && applied.Count == 0)
@@ -269,7 +285,15 @@ public unsafe class NvidiaDriverSettings
         SetUni(app.appName, Path.GetFileName(game.Exe));
         SetUni(app.userFriendlyName, game.Name);
         var rc = createApp(session, profile, ref app);
-        if (rc != 0) Log.Write("nvapi", "CreateApplication failed: " + Explain(rc));
+        if (rc != 0)
+        {
+            // A profile with no application attached applies to nothing. Writing settings
+            // into it would look like success while changing nothing at all, so stop here.
+            Log.Write("nvapi", "CreateApplication failed: " + Explain(rc));
+            throw new InvalidOperationException(
+                "Couldn't attach " + Path.GetFileName(game.Exe) + " to a driver profile (" + Explain(rc) +
+                "). No driver settings were changed.");
+        }
         return profile;
     }
 

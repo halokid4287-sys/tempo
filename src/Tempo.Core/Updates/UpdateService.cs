@@ -60,6 +60,32 @@ public class UpdateService
         return c;
     }
 
+    private static string LastSeenPath => Path.Combine(Backup.BackupService.DataDir, "last-version.txt");
+
+    /// <summary>
+    /// Tells us the version this person was on last time, exactly once, then records the
+    /// current one. Returns null on a fresh install (nobody wants a changelog for software
+    /// they have just opened for the first time) or when the version hasn't moved.
+    /// </summary>
+    public static string? ConsumeVersionChange()
+    {
+        try
+        {
+            var now = CurrentVersion();
+            string? previous = null;
+            if (File.Exists(LastSeenPath))
+            {
+                previous = File.ReadAllText(LastSeenPath).Trim();
+                if (previous == now) return null;            // nothing changed
+                if (previous.Length == 0) previous = null;
+            }
+            Directory.CreateDirectory(Backup.BackupService.DataDir);
+            File.WriteAllText(LastSeenPath, now);
+            return previous;                                  // null on first ever run
+        }
+        catch { return null; }
+    }
+
     public static string CurrentVersion()
     {
         var v = Assembly.GetEntryAssembly()?.GetName().Version
