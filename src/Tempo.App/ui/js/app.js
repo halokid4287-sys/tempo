@@ -922,7 +922,7 @@ function labelOf(s, val) {
 function renderGameSettings() {
   const groups = {};
   for (const s of GPROFILE.settings) (groups[s.group] ||= []).push(s);
-  const order = ["Display", "Quality", "Effects", "Driver"];
+  const order = ["Upscaling", "Display", "Quality", "Effects", "Driver"];
   const keys = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 99) % 99 - (order.indexOf(b) + 99) % 99);
 
   $("#gd-settings").innerHTML = keys.map((g) => `

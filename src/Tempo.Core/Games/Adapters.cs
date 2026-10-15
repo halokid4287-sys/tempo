@@ -119,6 +119,34 @@ public class RainbowSixAdapter : IGameSettingsAdapter
             "How aggressively textures are loaded in. Lower reduces stutter on slower drives.",
             "Quality", Scale04, "low");
 
+        // ---- Upscaling (FSR / DLSS) ----
+        // Siege documents FPSLimit, NVReflex, WindowMode and VSync with inline comments but
+        // says nothing about how its upscaler values are numbered. Writing a guessed value
+        // could leave the game in a graphics mode it can't render, so these are surfaced
+        // read-only: people can see what they're running without Tempo gambling on it.
+        void Info(string key, string section, string label, string desc)
+        {
+            var cur = ini.Get(section, key);
+            if (cur == null) return;
+            list.Add(new GameSetting
+            {
+                Key = section + "/" + key, Label = label, Description = desc, Group = "Upscaling",
+                Kind = "choice", Current = cur, Impact = "high", ReadOnly = true,
+                ReadOnlyReason = "Siege doesn't document how it numbers this setting, and a wrong value could break how the game renders. Change it in the game's Display menu — Tempo won't guess.",
+            });
+        }
+
+        Info("Upscaler", "CUSTOM_QUALITY", "Upscaler in use",
+            "Which upscaler Siege is rendering with. Upscaling renders the game below your screen resolution and reconstructs it, which is usually the single biggest FPS gain available.");
+        Info("FSRPerfQual", "CUSTOM_QUALITY", "AMD FSR 1 quality",
+            "Quality level for AMD FidelityFX Super Resolution 1. FSR works on any graphics card, not just AMD.");
+        Info("FSR2PerfQual", "CUSTOM_QUALITY", "AMD FSR 2 quality",
+            "Quality level for AMD FidelityFX Super Resolution 2 — sharper and more stable in motion than FSR 1, and still vendor-neutral.");
+        Info("DLSSPerfQual", "CUSTOM_QUALITY", "NVIDIA DLSS quality",
+            "Quality level for NVIDIA DLSS. Requires an RTX card; AMD and Intel users should use FSR instead.");
+        Info("RenderScalingFactor", "CUSTOM_QUALITY", "Render scaling factor",
+            "Siege's own resolution scaling. 0 leaves it to the upscaler setting above.");
+
         return list;
     }
 
@@ -252,12 +280,33 @@ public class UnrealEngineAdapter : IGameSettingsAdapter
         if (rq != null)
             list.Add(new GameSetting
             {
-                Key = "ScalabilityGroups/sg.ResolutionQuality", Label = "Render scale (3D resolution)",
-                Description = "Renders the 3D world at a percentage of your screen resolution, then upscales. The most powerful performance control there is — 100 is native.",
-                Group = "Display", Kind = "number", Current = rq, Min = 50, Max = 100, Impact = "high",
+                Key = "ScalabilityGroups/sg.ResolutionQuality", Label = "Render scale (upscaling)",
+                Description = "Renders the 3D world at a percentage of your screen resolution and upscales it — the same thing FSR and DLSS do underneath, and it works on any graphics card. 100 is native; 80 is roughly a 'quality' preset. Usually the single biggest FPS gain available.",
+                Group = "Upscaling", Kind = "number", Current = rq, Min = 50, Max = 100, Impact = "high",
             });
 
         var section = FindGameSection(cfg);
+
+        // Which upscaler the game is using. Values are the game's own strings, so this is
+        // shown rather than set — writing an unrecognised one could stop it rendering.
+        foreach (var (key, label, desc) in new[]
+        {
+            ("FortAntiAliasingMethod", "Upscaler / anti-aliasing method",
+             "Which upscaler the game is running: TSR and FSR work on any card, DLSS needs an NVIDIA RTX card, XeSS is Intel's."),
+            ("bEnableDLSSFrameGeneration", "DLSS frame generation",
+             "Generates extra frames. Needs an NVIDIA RTX 40-series or newer; AMD's equivalent is FSR 3 frame generation, set in-game."),
+        })
+        {
+            var v = ini.Get(section, key);
+            if (v == null) continue;
+            list.Add(new GameSetting
+            {
+                Key = section + "/" + key, Label = label, Description = desc, Group = "Upscaling",
+                Kind = "choice", Current = v, Impact = "high", ReadOnly = true,
+                ReadOnlyReason = "This game names its upscaler modes itself and doesn't document them, so Tempo won't guess. Pick it in the game's video settings — the render scale above is the part that's safe to set from here.",
+            });
+        }
+
         void Game(string key, string label, string desc, string kind, SettingOption[]? opts, string impact, double? min = null, double? max = null)
         {
             var cur = ini.Get(section, key);

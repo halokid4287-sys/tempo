@@ -342,6 +342,13 @@ public class UnrealEngine3Adapter : IGameSettingsAdapter
             { new() { Value = "0", Label = "Low" }, new() { Value = "1", Label = "Medium" }, new() { Value = "2", Label = "High" } });
         Add("ShadowFilterQualityBias", "Shadow filter quality", "Softness of shadow edges. Negative values are faster.", "medium", null, null, -2, 2);
 
+        // Render scale is engine-standard in UE3 and documented, unlike the per-game
+        // upscaler enums, so it is safe to set. It is also what FSR and DLSS do underneath,
+        // and it works the same on AMD, NVIDIA and Intel.
+        Add("ScreenPercentage", "Render scale (upscaling)", "Renders the game below your screen resolution and scales it up — the same thing FSR and DLSS do underneath, and it works on any graphics card. 100 is native; 80 is roughly a 'quality' upscaling preset and usually the biggest single FPS gain available.", "high", null, "Upscaling", 50, 100);
+        Add("UpscaleScreenPercentage", "Smooth the upscaled image", "Filters the upscaled picture instead of leaving it blocky. Costs almost nothing.", "low", Bool, "Upscaling");
+        Add("AllowDynamicResolution", "Dynamic resolution", "Lets the game lower render scale by itself when the frame rate drops, keeping it steadier at the cost of some sharpness.", "medium", Bool, "Upscaling");
+
         return list;
     }
 
@@ -361,6 +368,10 @@ public class UnrealEngine3Adapter : IGameSettingsAdapter
             "SystemSettings/bAllowTemporalAA" => perf ? "False" : "True",
             "SystemSettings/MaxShadowResolution" => perf ? "512" : quality ? "2048" : "1024",
             "SystemSettings/DetailMode" => perf ? "0" : quality ? "2" : "2",
+            // only ever suggest upscaling for the performance preset — never silently
+            // reduce someone's image quality when they asked for balanced or quality
+            "SystemSettings/ScreenPercentage" => perf ? "80" : "100",
+            "SystemSettings/UpscaleScreenPercentage" => "True",
             _ => null,
         };
     }

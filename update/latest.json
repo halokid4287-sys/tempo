@@ -1,7 +1,7 @@
 {
-    "version":  "1.1.0",
-    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.1.0/Tempo.exe",
-    "sha256":  "B41F67A9C53BBD976E78927384F7032C02927C4D68E558BE3530361B7D91B110",
-    "notes":  "- NEW: a Game Optimization tab that tunes each of your games separately\n- Finds games automatically from Steam, Epic, Ubisoft, GOG, EA, Battle.net and Xbox\n- A performance-to-quality slider that shows exactly what it would change before you apply anything\n- Per-game NVIDIA driver settings: power mode, low latency, V-Sync and texture filtering\n- In-game settings for Unreal Engine, Unity and Source games, plus Rainbow Six Siege and Minecraft\n- Every change is backed up first and can be undone from the History tab\n- Anything your driver or game will not allow is shown as unavailable rather than pretending to work\n- Game settings files keep their original format, so nothing gets corrupted",
+    "version":  "1.1.1",
+    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.1.1/Tempo.exe",
+    "sha256":  "BBC1DCA81D486A23D615EA6021FBCCA54D6F6BF0D04E78D29494E0965B3F0B1F",
+    "notes":  "- NEW: an Upscaling section on each game\u0027s page\n- Render scale is now adjustable - the same trick FSR and DLSS use underneath, and it works on any graphics card, AMD or NVIDIA or Intel\n- Shows which upscaler each game is running: FSR, DLSS, XeSS or TSR\n- FSR and DLSS mode pickers are shown but left locked, because games do not document how they number those options and a wrong value could stop a game rendering - pick those in the game\u0027s own menu\n- Rocket League gains render scale, image smoothing and dynamic resolution controls",
     "released":  "2026-10-14"
 }
