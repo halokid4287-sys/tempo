@@ -13,11 +13,15 @@ namespace Tempo.Core.Games;
 public class GameSettingsService
 {
     private readonly BackupService _backup;
+    // Order matters: game-specific adapters get first refusal, then engine-level ones.
     private readonly List<IGameSettingsAdapter> _adapters = new()
     {
         new RainbowSixAdapter(),
-        new UnrealEngineAdapter(),
         new MinecraftAdapter(),
+        new UnrealEngineAdapter(),    // UE4/5 — GameUserSettings.ini
+        new UnrealEngine3Adapter(),   // UE3  — [SystemSettings]
+        new SourceEngineAdapter(),    // Source/Source 2 cvars
+        new UnityAdapter(),           // Unity PlayerPrefs
     };
 
     public GameSettingsService(BackupService backup) => _backup = backup;
