@@ -315,8 +315,9 @@ public class UnrealEngine3Adapter : IGameSettingsAdapter
         var ini = new IniFile(cfg);
         var list = new List<GameSetting>();
 
-        void Add(string key, string label, string desc, string impact, SettingOption[]? opts, string group = "Quality", double? min = null, double? max = null)
+        void Add(string key, string label, string desc, string impact, SettingOption[]? opts, string? group = null, double? min = null, double? max = null)
         {
+            group ??= "Quality";
             var cur = ini.Get("SystemSettings", key);
             if (cur == null) return;
             list.Add(new GameSetting
