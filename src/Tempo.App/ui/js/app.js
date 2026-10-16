@@ -846,13 +846,29 @@ async function openGame(game) {
   await loadGameProfile();
 }
 
+let gLoadSeq = 0;
 async function loadGameProfile() {
+  // Reading a profile touches the game's config file AND opens a driver session, so it is
+  // slow enough that two can overlap. Stamp each request and ignore any that finishes late,
+  // otherwise an older preset's results can land on top of a newer one.
+  const seq = ++gLoadSeq;
+  const gameId = GAME.id;
   try {
-    GPROFILE = await call("gameProfile", { id: GAME.id, preset: GPRESET });
+    const p = await call("gameProfile", { id: gameId, preset: GPRESET });
+    if (seq !== gLoadSeq || GAME.id !== gameId) return;   // superseded
+    GPROFILE = p;
     renderGameProfile();
   } catch (e) {
+    if (seq !== gLoadSeq) return;
     $("#gd-settings").innerHTML = `<div class="empty">Couldn't read settings: ${esc(e.message)}</div>`;
   }
+}
+
+/** Instant, purely-visual feedback while the slider is being dragged. */
+function paintPreset(level) {
+  const [label, desc] = PRESET_TEXT[level];
+  $("#gd-preset-label").textContent = label;
+  $("#gd-preset-desc").textContent = desc;
 }
 
 function renderGameProfile() {
@@ -981,9 +997,17 @@ $("#btn-gd-launch").addEventListener("click", async () => {
   try { await call("launchGame", { id: GAME.id }); toast("Launching", GAME.name + " is starting."); }
   catch (e) { toast("Couldn't launch it", e.message, "warn"); }
 });
-$("#gd-slider").addEventListener("input", async (e) => {
-  GPRESET = +e.target.value;
+// While dragging, only repaint the label — rebuilding the settings list and re-reading
+// the driver on every pixel of movement made the slider stall and feel stuck.
+$("#gd-slider").addEventListener("input", (e) => paintPreset(+e.target.value));
+
+// Do the real work once, when the handle is released (or moved by keyboard).
+$("#gd-slider").addEventListener("change", async (e) => {
+  const level = +e.target.value;
+  if (level === GPRESET) return;
+  GPRESET = level;
   gEdits.clear();
+  paintPreset(level);
   await loadGameProfile();
 });
 $("#btn-games-add").addEventListener("click", async () => {
