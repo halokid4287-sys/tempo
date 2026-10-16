@@ -223,10 +223,11 @@ public class Bridge : IDisposable
             case "gameProfile":
             {
                 var id = p.GetProperty("id").GetString() ?? "";
-                var preset = (Preset)(p.TryGetProperty("preset", out var pr) ? pr.GetInt32() : 1);
+                // 0 = all performance, 100 = all quality, anywhere in between
+                var balance = p.TryGetProperty("balance", out var b) ? b.GetInt32() : 50;
                 var game = FindGame(id);
                 _sysInfo ??= _hw.GetSystemInfo();
-                return _gameSettings.BuildProfile(game, _sysInfo, preset);
+                return _gameSettings.BuildProfile(game, _sysInfo, balance);
             }
             case "applyGameSettings":
             {
@@ -266,6 +267,11 @@ public class Bridge : IDisposable
             {
                 var vendor = p.GetProperty("vendor").GetString() ?? "";
                 OpenVendorPanel(vendor);
+                return true;
+            }
+            case "logDiag":
+            {
+                Tempo.Core.Logging.Log.Write("ui-diag", p.GetProperty("msg").GetString() ?? "");
                 return true;
             }
             case "appVersion":

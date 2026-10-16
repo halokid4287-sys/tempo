@@ -44,8 +44,10 @@ public unsafe class NvidiaDriverSettings
 
     // ---------------- public API ----------------
 
-    public List<GameSetting> ReadForGame(DetectedGame game, Preset preset)
+    /// <param name="balance">0 = all performance, 100 = all quality.</param>
+    public List<GameSetting> ReadForGame(DetectedGame game, int balance)
     {
+        double t = Math.Clamp(balance, 0, 100) / 100.0;
         var list = new List<GameSetting>();
         var values = new Dictionary<uint, uint?>();
         WithSession(session =>
@@ -68,7 +70,7 @@ public unsafe class NvidiaDriverSettings
                 new() { Value = "1", Label = "Prefer maximum performance" },
                 new() { Value = "3", Label = "Optimal power" },
             },
-            Recommended = preset == Preset.MaxQuality ? "0" : "1",
+            Recommended = t >= 0.80 ? "0" : "1",   // highest clocks until the quality end
         });
 
         list.Add(new GameSetting
@@ -81,7 +83,7 @@ public unsafe class NvidiaDriverSettings
                 new() { Value = "1", Label = "On (1 frame queued)" },
                 new() { Value = "2", Label = "2 frames queued" },
             },
-            Recommended = preset == Preset.MaxQuality ? "0" : "1",
+            Recommended = t >= 0.60 ? "0" : "1",   // give the game back control sooner
         });
 
         list.Add(new GameSetting
@@ -94,7 +96,7 @@ public unsafe class NvidiaDriverSettings
                 new() { Value = VSYNC_FORCE_OFF.ToString(), Label = "Force off" },
                 new() { Value = VSYNC_FORCE_ON.ToString(), Label = "Force on" },
             },
-            Recommended = preset == Preset.MaxQuality ? VSYNC_APP.ToString() : VSYNC_FORCE_OFF.ToString(),
+            Recommended = t >= 0.90 ? VSYNC_APP.ToString() : VSYNC_FORCE_OFF.ToString(),
         });
 
         // Verified against this driver: it rejects writes to this id through DRS, so it is
@@ -118,7 +120,7 @@ public unsafe class NvidiaDriverSettings
                 new() { Value = "1", Label = "Quality" },
                 new() { Value = "2", Label = "High quality" },
             },
-            Recommended = preset == Preset.MaxPerformance ? "0" : "1",
+            Recommended = t <= 0.35 ? "0" : "1",   // only trade sharpness toward the performance end
         });
 
         list.Add(new GameSetting

@@ -593,3 +593,14 @@ h1 { font-size: 27px; font-weight: 700; letter-spacing: -.3px; color: #fff; }
 .slider-ticks span:hover { color: var(--text); background: var(--card2); }
 /* the handle must receive the pointer directly, never the track underneath */
 #gd-slider { touch-action: none; }
+
+/* the track fills up to the handle so the chosen balance reads at a glance */
+#gd-slider::-webkit-slider-runnable-track {
+  background:
+    linear-gradient(90deg, var(--green) 0%, var(--blue) 100%) border-box,
+    #1c2735;
+  background-image: linear-gradient(90deg, var(--green), var(--blue));
+  background-size: var(--fill, 50%) 100%;
+  background-repeat: no-repeat;
+  background-color: #1c2735;
+}

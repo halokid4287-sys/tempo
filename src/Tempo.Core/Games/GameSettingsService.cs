@@ -40,8 +40,10 @@ public class GameSettingsService
     }
 
     /// <summary>Everything the UI needs for one game. Read-only.</summary>
-    public GameProfile BuildProfile(DetectedGame game, SystemInfo sys, Preset preset)
+    /// <param name="balance">0 = all performance, 100 = all quality, anywhere in between.</param>
+    public GameProfile BuildProfile(DetectedGame game, SystemInfo sys, int balance)
     {
+        double t = Math.Clamp(balance, 0, 100) / 100.0;
         var profile = new GameProfile { Game = game };
         var adapter = AdapterFor(game, out var cfg);
 
@@ -54,7 +56,13 @@ public class GameSettingsService
             {
                 profile.Settings.AddRange(adapter.Read(cfg, sys));
                 foreach (var s in profile.Settings)
-                    s.Recommended = adapter.Recommend(s, preset, sys);
+                {
+                    if (s.ReadOnly) { s.Recommended = null; continue; }
+                    // blend between the two extremes so any slider position is meaningful
+                    s.Recommended = Blend.Between(s,
+                        adapter.Recommend(s, Preset.MaxPerformance, sys),
+                        adapter.Recommend(s, Preset.MaxQuality, sys), t);
+                }
             }
             catch (Exception ex)
             {
@@ -83,7 +91,7 @@ public class GameSettingsService
                     if (drv.Available)
                     {
                         profile.DriverSettingsAvailable = true;
-                        profile.Settings.AddRange(drv.ReadForGame(game, preset));
+                        profile.Settings.AddRange(drv.ReadForGame(game, balance));
                         game.HasDriverProfile = true;
                     }
                     else profile.DriverUnavailableReason = drv.UnavailableReason;

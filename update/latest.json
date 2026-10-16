@@ -1,7 +1,7 @@
 {
-    "version":  "1.1.3",
-    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.1.3/Tempo.exe",
-    "sha256":  "4B56953B72C0E34B802885E984B670DFC919FC69D253BCE2FAC04814615DA74F",
-    "notes":  "- Fixed properly: the performance-to-quality slider now follows your mouse when you drag it\n- You can also just click Max performance, Balanced or Max quality to switch - no dragging needed\n- Clicking anywhere on the slider track jumps to that preset\n- Arrow keys work on the slider too",
+    "version":  "1.2.0",
+    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.2.0/Tempo.exe",
+    "sha256":  "5172D50FABBDBCAA88084758F9FD8413356C0E63C856D8AFB36FBCB9D51D1ABD",
+    "notes":  "- The performance-to-quality slider is now fully adjustable - put it anywhere you like instead of only three fixed positions\n- Settings blend smoothly between the two ends, so you can have a genuine mixture rather than all-performance or all-quality\n- The slider shows the split you have chosen, for example 70% performance / 30% quality\n- The track now fills up to the handle so the position is obvious at a glance\n- Clicking Max performance, Balanced or Max quality still jumps straight to those points",
     "released":  "2026-10-16"
 }

@@ -6,6 +6,48 @@ namespace Tempo.Core.Games;
 public enum Preset { MaxPerformance = 0, Balanced = 1, MaxQuality = 2 }
 
 /// <summary>
+/// Blends a setting between its "all performance" and "all quality" values so the slider
+/// can sit anywhere in between, rather than only on three fixed stops. Ordered option
+/// lists blend by position in the list; numbers blend numerically.
+/// </summary>
+internal static class Blend
+{
+    /// <param name="t">0 = fully performance, 1 = fully quality.</param>
+    public static string? Between(GameSetting s, string? perf, string? qual, double t)
+    {
+        if (perf == null && qual == null) return null;
+        if (perf == null) return t >= 0.5 ? qual : null;
+        if (qual == null) return t <= 0.5 ? perf : null;
+        if (perf == qual) return perf;
+
+        // A list of choices is ordered worst->best, so walk along it.
+        if (s.Options.Count > 1)
+        {
+            int i = s.Options.FindIndex(o => o.Value == perf);
+            int j = s.Options.FindIndex(o => o.Value == qual);
+            if (i >= 0 && j >= 0)
+            {
+                int k = (int)Math.Round(i + (j - i) * t);
+                return s.Options[Math.Clamp(k, Math.Min(i, j), Math.Max(i, j))].Value;
+            }
+        }
+
+        if (double.TryParse(perf, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var a) &&
+            double.TryParse(qual, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var b))
+        {
+            var v = a + (b - a) * t;
+            bool whole = !perf.Contains('.') && !qual.Contains('.');
+            return whole
+                ? ((long)Math.Round(v)).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : v.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        // values with no order we can reason about (e.g. True/False) flip at the midpoint
+        return t >= 0.5 ? qual : perf;
+    }
+}
+
+/// <summary>
 /// Reads and writes one game's own settings file. Every adapter here was written against
 /// a real config file inspected on disk — no invented key names. An adapter only claims a
 /// game when its config actually exists.
