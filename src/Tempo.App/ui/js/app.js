@@ -775,6 +775,7 @@ let GAMES = [];
 let GAME = null;          // currently open game
 let GPROFILE = null;      // its settings profile
 let GPRESET = 50;        // 0 = all performance, 100 = all quality
+const gBalance = new Map();   // per game — the slider must NOT carry between games
 const gEdits = new Map(); // key -> chosen value
 
 /** Describes any position on the 0–100 performance↔quality slider. */
@@ -840,6 +841,11 @@ function renderGames() {
 async function openGame(game) {
   GAME = game;
   gEdits.clear();
+  // Each game starts balanced unless you have moved its own slider before. Carrying the
+  // last game's position over made it look as though Tempo had already changed this one.
+  GPRESET = gBalance.has(game.id) ? gBalance.get(game.id) : 50;
+  $("#gd-slider").value = GPRESET;
+  paintPreset(GPRESET);
   $("#games-library").style.display = "none";
   $("#game-detail").style.display = "";
   $("#gd-name").textContent = game.name;
@@ -962,7 +968,10 @@ function renderGameSettings() {
 
   $("#gd-settings").innerHTML = keys.map((g) => `
     <div class="set-group">
-      <h3 class="block-title">${esc(g)}${g === "Driver" ? ` <span class="muted" style="font-size:12px">— ${esc(GPROFILE.driverVendor)} driver, applies to this game only</span>` : ""}</h3>
+      <h3 class="block-title">${esc(g)}${g === "Driver" ? ` <span class="muted" style="font-size:12px">— ${esc(GPROFILE.driverVendor)} driver profile${GPROFILE.driverProfileName ? ` “${esc(GPROFILE.driverProfileName)}”` : ""}</span>` : ""}</h3>
+      ${g === "Driver" && GPROFILE.driverProfileApps > 1
+        ? `<div class="apply-hint">ℹ ${esc(GPROFILE.driverVendor)} groups this game's programs into one profile — these driver settings cover all ${GPROFILE.driverProfileApps} of them (the game plus its launcher and helpers). The in-game settings above affect this game only.</div>`
+        : ""}
       ${groups[g].map(settingRow).join("")}
     </div>`).join("") || `<div class="empty">No adjustable settings found for this game.</div>`;
 
@@ -1035,6 +1044,7 @@ async function commitPreset(v) {
   paintPreset(v);
   if (v === GPRESET) return;
   GPRESET = v;
+  if (GAME) gBalance.set(GAME.id, v);   // remembered for this game only
   gEdits.clear();
   await loadGameProfile();
 }

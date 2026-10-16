@@ -54,6 +54,9 @@ public class GameProfile
     public bool DriverSettingsAvailable { get; set; }
     public string DriverVendor { get; set; } = "";
     public string? DriverUnavailableReason { get; set; }
+    /// <summary>Driver profile these settings land in, and how many programs share it.</summary>
+    public string DriverProfileName { get; set; } = "";
+    public int DriverProfileApps { get; set; }
 }
 
 public class ApplyGameResult

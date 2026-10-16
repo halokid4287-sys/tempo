@@ -1,7 +1,7 @@
 {
-    "version":  "1.2.1",
-    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.2.1/Tempo.exe",
-    "sha256":  "1A533501A2E018A6428A2D6E1506E257DB9D84F8DEAE17222F2317BC055B3B10",
-    "notes":  "- Moving the slider now ticks its suggestions for you, so the Apply button is ready straight away\n- The Apply button says exactly what it will do, for example \u0027Apply 3 changes to this game\u0027\n- Added a line above the table explaining that the ticked changes are ready and you can untick any you want to keep\n- Tempo still never changes a game on its own - you always confirm first, and every change can be undone from History",
+    "version":  "1.2.2",
+    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.2.2/Tempo.exe",
+    "sha256":  "8A90A2DF5BBDFBA6F871A45ABDA2075A533CC82A0BF3B528F3171884B000E99A",
+    "notes":  "- Fixed: the slider position carried over when you opened another game, making it look as though Tempo had already changed that game too\n- Each game now keeps its own slider position, and a game you have not touched always opens at Balanced\n- To be clear: your games were never affected by each other - each one only ever writes to its own settings file\n- The Driver section now names the graphics profile it edits and how many of that game\u0027s programs it covers",
     "released":  "2026-10-16"
 }

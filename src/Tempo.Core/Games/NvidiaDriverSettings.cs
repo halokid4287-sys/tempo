@@ -139,6 +139,30 @@ public unsafe class NvidiaDriverSettings
         return list;
     }
 
+    /// <summary>
+    /// Name of the driver profile this game's settings would be written to, and how many
+    /// applications share it. A profile covering several executables is NOT safe to edit
+    /// for one game — every other game inside it would change too.
+    /// </summary>
+    public (string name, int apps, bool predefined) DescribeProfileFor(DetectedGame game)
+    {
+        var result = ("(no profile)", 0, false);
+        WithSession(s =>
+        {
+            var profile = FindProfile(s, game);
+            if (profile == IntPtr.Zero) return;
+            var info = new NVDRS_PROFILE { version = (uint)(sizeof(NVDRS_PROFILE) | (1 << 16)) };
+            if (Fn<DrsGetProfileInfo>(0x61CD6FD6)(s, profile, ref info) != 0) return;
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < 2048; i++) { if (info.profileName[i] == 0) break; sb.Append((char)info.profileName[i]); }
+            result = (sb.ToString(), (int)info.numOfApps, info.isPredefined != 0);
+        });
+        return result;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int DrsGetProfileInfo(IntPtr s, IntPtr profile, ref NVDRS_PROFILE info);
+
     /// <summary>Writes the chosen driver settings into this game's own driver profile.</summary>
     public List<string> ApplyForGame(DetectedGame game, Dictionary<string, string> values, BackupSession session)
     {

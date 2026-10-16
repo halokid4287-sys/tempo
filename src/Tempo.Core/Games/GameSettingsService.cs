@@ -93,6 +93,13 @@ public class GameSettingsService
                         profile.DriverSettingsAvailable = true;
                         profile.Settings.AddRange(drv.ReadForGame(game, balance));
                         game.HasDriverProfile = true;
+                        try
+                        {
+                            var (pname, papps, _) = drv.DescribeProfileFor(game);
+                            profile.DriverProfileName = pname;
+                            profile.DriverProfileApps = papps;
+                        }
+                        catch { }
                     }
                     else profile.DriverUnavailableReason = drv.UnavailableReason;
                 }
