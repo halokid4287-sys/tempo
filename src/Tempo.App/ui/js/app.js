@@ -878,9 +878,23 @@ function paintPreset(v) {
   $("#gd-slider").style.setProperty("--fill", v + "%");
 }
 
+/**
+ * Ticks everything the slider is suggesting, so Apply is ready the moment you move it.
+ * Nothing is written here — the user still confirms before anything changes.
+ */
+function selectSuggestions() {
+  gEdits.clear();
+  for (const s of GPROFILE.settings) {
+    if (s.readOnly || s.recommended == null) continue;
+    if (String(s.recommended) === String(s.current)) continue;
+    gEdits.set(s.key, String(s.recommended));
+  }
+}
+
 function renderGameProfile() {
   const p = GPROFILE;
   paintPreset(GPRESET);
+  selectSuggestions();
 
   // honest notes about this game
   const notes = [...(p.notes || [])];
@@ -989,8 +1003,20 @@ function settingRow(s) {
 
 function syncGameApply() {
   const b = $("#btn-gd-apply");
-  b.disabled = gEdits.size === 0;
-  b.textContent = gEdits.size ? `Apply changes (${gEdits.size})` : "Apply changes";
+  const n = gEdits.size;
+  b.disabled = n === 0;
+  b.textContent = n ? `Apply ${n} change${n > 1 ? "s" : ""} to this game` : "Nothing to apply";
+  b.title = n
+    ? `Writes ${n} setting${n > 1 ? "s" : ""} for ${GAME ? GAME.name : "this game"}. You'll get a confirmation first, and it can be undone from History.`
+    : "Move the slider, or change a setting below, and this button will light up.";
+
+  const hint = $("#gd-apply-hint");
+  if (hint) {
+    hint.textContent = n
+      ? `${n} change${n > 1 ? "s are" : " is"} ticked and ready — untick anything you'd rather keep, then press “Apply ${n} change${n > 1 ? "s" : ""} to this game”.`
+      : "Nothing differs from your current settings at this slider position.";
+    hint.className = n ? "apply-hint ready" : "apply-hint";
+  }
 }
 
 $("#btn-games-scan").addEventListener("click", () => scanGames());

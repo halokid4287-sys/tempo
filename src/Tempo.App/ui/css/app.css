@@ -604,3 +604,21 @@ h1 { font-size: 27px; font-weight: 700; letter-spacing: -.3px; color: #fff; }
   background-repeat: no-repeat;
   background-color: #1c2735;
 }
+
+/* tells people plainly that the ticked changes are ready to apply */
+.apply-hint {
+  font-size: 12.5px; color: var(--muted); line-height: 1.5;
+  padding: 10px 14px; margin-bottom: 10px; border-radius: 10px;
+  background: var(--bg2); border: 1px solid var(--border);
+}
+.apply-hint.ready {
+  color: var(--text);
+  background: rgba(46, 230, 166, .07);
+  border-color: rgba(46, 230, 166, .3);
+}
+/* make the enabled Apply button unmistakable */
+#btn-gd-apply:not(:disabled) { animation: applyPulse 2.4s ease-in-out infinite; }
+@keyframes applyPulse {
+  0%, 100% { box-shadow: 0 4px 18px rgba(46, 230, 166, .25); }
+  50%      { box-shadow: 0 4px 26px rgba(46, 230, 166, .55); }
+}
