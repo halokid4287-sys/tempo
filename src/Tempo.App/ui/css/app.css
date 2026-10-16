@@ -584,3 +584,12 @@ h1 { font-size: 27px; font-weight: 700; letter-spacing: -.3px; color: #fff; }
 /* a long game name should wrap, never force the layout narrower than the pane */
 #gd-name { overflow-wrap: anywhere; }
 .gd-title > div { min-width: 0; }
+
+/* the three tick labels are clickable shortcuts to each preset */
+.slider-ticks span {
+  cursor: pointer; padding: 3px 6px; border-radius: 6px;
+  transition: color .15s, background .15s; user-select: none;
+}
+.slider-ticks span:hover { color: var(--text); background: var(--card2); }
+/* the handle must receive the pointer directly, never the track underneath */
+#gd-slider { touch-action: none; }

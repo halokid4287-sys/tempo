@@ -997,19 +997,63 @@ $("#btn-gd-launch").addEventListener("click", async () => {
   try { await call("launchGame", { id: GAME.id }); toast("Launching", GAME.name + " is starting."); }
   catch (e) { toast("Couldn't launch it", e.message, "warn"); }
 });
-// While dragging, only repaint the label — rebuilding the settings list and re-reading
-// the driver on every pixel of movement made the slider stall and feel stuck.
-$("#gd-slider").addEventListener("input", (e) => paintPreset(+e.target.value));
-
-// Do the real work once, when the handle is released (or moved by keyboard).
-$("#gd-slider").addEventListener("change", async (e) => {
-  const level = +e.target.value;
+/** Applies a preset: repaint immediately, then reload the (slow) settings underneath. */
+async function commitPreset(level) {
+  level = Math.max(0, Math.min(2, level));
+  $("#gd-slider").value = level;
+  paintPreset(level);
   if (level === GPRESET) return;
   GPRESET = level;
   gEdits.clear();
-  paintPreset(level);
   await loadGameProfile();
-});
+}
+
+// The slider is driven by explicit pointer capture rather than relying on the browser's
+// built-in range dragging, which did not track the mouse reliably inside the app's
+// embedded browser. Capturing the pointer ourselves makes dragging behave the same
+// everywhere, and keeps working if the cursor strays outside the control mid-drag.
+(() => {
+  const slider = $("#gd-slider");
+  let dragging = false;
+
+  const levelAt = (clientX) => {
+    const r = slider.getBoundingClientRect();
+    if (r.width === 0) return GPRESET;
+    const pct = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    return Math.round(pct * 2);
+  };
+
+  slider.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    try { slider.setPointerCapture(e.pointerId); } catch { }
+    const v = levelAt(e.clientX);
+    slider.value = v;
+    paintPreset(v);
+    e.preventDefault();
+  });
+
+  slider.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const v = levelAt(e.clientX);
+    if (+slider.value !== v) { slider.value = v; paintPreset(v); }   // cheap: label only
+  });
+
+  const finish = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    try { slider.releasePointerCapture(e.pointerId); } catch { }
+    commitPreset(+slider.value);
+  };
+  slider.addEventListener("pointerup", finish);
+  slider.addEventListener("pointercancel", finish);
+
+  // keyboard (arrow keys) still goes through the native change event
+  slider.addEventListener("change", () => { if (!dragging) commitPreset(+slider.value); });
+
+  // it is a three-way choice, so let people just click the labels
+  $$(".slider-ticks span").forEach((tick, i) =>
+    tick.addEventListener("click", () => commitPreset(i)));
+})();
 $("#btn-games-add").addEventListener("click", async () => {
   try {
     const r = await call("pickGameExe");

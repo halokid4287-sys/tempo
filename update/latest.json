@@ -1,7 +1,7 @@
 {
-    "version":  "1.1.2",
-    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.1.2/Tempo.exe",
-    "sha256":  "97A9272C15AD9C7EE7C12AB218073DBB5C349A4BEAB0EA856F32CB69ACC076FA",
-    "notes":  "- Fixed: the performance-to-quality slider would stall instead of moving when you dragged it\n- Dragging is now instant - the settings underneath refresh once when you let go, rather than on every pixel of movement\n- The slider handle is easier to grab and now works with arrow keys too\n- Fixed: switching presets quickly could briefly show the wrong preset\u0027s settings\n- Fixed: the layout broke in a narrow window, stacking game titles one word per line",
+    "version":  "1.1.3",
+    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.1.3/Tempo.exe",
+    "sha256":  "4B56953B72C0E34B802885E984B670DFC919FC69D253BCE2FAC04814615DA74F",
+    "notes":  "- Fixed properly: the performance-to-quality slider now follows your mouse when you drag it\n- You can also just click Max performance, Balanced or Max quality to switch - no dragging needed\n- Clicking anywhere on the slider track jumps to that preset\n- Arrow keys work on the slider too",
     "released":  "2026-10-16"
 }
