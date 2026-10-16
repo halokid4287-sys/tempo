@@ -11,7 +11,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>Tempo</AssemblyName>
     <ApplicationIcon>tempo.ico</ApplicationIcon>
-    <Version>1.2.2</Version>
+    <Version>1.3.0</Version>
     <Product>Tempo</Product>
     <Description>Free, open PC gaming optimizer</Description>
     <Company>Tempo</Company>

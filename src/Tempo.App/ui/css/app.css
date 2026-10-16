@@ -466,32 +466,6 @@ h1 { font-size: 27px; font-weight: 700; letter-spacing: -.3px; color: #fff; }
 .gd-title { display: flex; align-items: center; gap: 16px; }
 .gd-icon { width: 54px; height: 54px; border-radius: 12px; background: var(--card2); padding: 5px; object-fit: contain; }
 
-/* slider */
-.slider-card { margin-bottom: 16px; }
-.slider-head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
-.slider-head b { color: var(--green); font-size: 14px; }
-#gd-slider {
-  width: 100%; -webkit-appearance: none; appearance: none;
-  height: 22px;                 /* tall transparent hit area — the handle was fiddly to grab */
-  background: transparent; outline: none; cursor: pointer; display: block;
-}
-#gd-slider::-webkit-slider-runnable-track {
-  height: 6px; border-radius: 4px;
-  background: linear-gradient(90deg, var(--green), var(--blue));
-}
-#gd-slider::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none;
-  width: 20px; height: 20px; border-radius: 50%;
-  background: #fff; border: 3px solid var(--green); cursor: grab;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, .5);
-  margin-top: -7px;             /* centre the handle on the 6px track */
-  transition: transform .12s;
-}
-#gd-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
-#gd-slider:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.2); }
-#gd-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(46, 230, 166, .35); }
-.slider-ticks { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--muted); }
-.slider-card p { margin-top: 10px; font-size: 12.5px; line-height: 1.5; }
 
 /* comparison table */
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
@@ -585,25 +559,7 @@ h1 { font-size: 27px; font-weight: 700; letter-spacing: -.3px; color: #fff; }
 #gd-name { overflow-wrap: anywhere; }
 .gd-title > div { min-width: 0; }
 
-/* the three tick labels are clickable shortcuts to each preset */
-.slider-ticks span {
-  cursor: pointer; padding: 3px 6px; border-radius: 6px;
-  transition: color .15s, background .15s; user-select: none;
-}
-.slider-ticks span:hover { color: var(--text); background: var(--card2); }
-/* the handle must receive the pointer directly, never the track underneath */
-#gd-slider { touch-action: none; }
 
-/* the track fills up to the handle so the chosen balance reads at a glance */
-#gd-slider::-webkit-slider-runnable-track {
-  background:
-    linear-gradient(90deg, var(--green) 0%, var(--blue) 100%) border-box,
-    #1c2735;
-  background-image: linear-gradient(90deg, var(--green), var(--blue));
-  background-size: var(--fill, 50%) 100%;
-  background-repeat: no-repeat;
-  background-color: #1c2735;
-}
 
 /* tells people plainly that the ticked changes are ready to apply */
 .apply-hint {

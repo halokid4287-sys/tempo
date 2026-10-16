@@ -1,7 +1,7 @@
 {
-    "version":  "1.2.2",
-    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.2.2/Tempo.exe",
-    "sha256":  "8A90A2DF5BBDFBA6F871A45ABDA2075A533CC82A0BF3B528F3171884B000E99A",
-    "notes":  "- Fixed: the slider position carried over when you opened another game, making it look as though Tempo had already changed that game too\n- Each game now keeps its own slider position, and a game you have not touched always opens at Balanced\n- To be clear: your games were never affected by each other - each one only ever writes to its own settings file\n- The Driver section now names the graphics profile it edits and how many of that game\u0027s programs it covers",
+    "version":  "1.3.0",
+    "url":  "https://github.com/halokid4287-sys/tempo/releases/download/v1.3.0/Tempo.exe",
+    "sha256":  "152CD40957B4CBD4C41B02F587ECC2D2C4843F7DB2695915C6AD5AC64E9DC894",
+    "notes":  "- Removed the performance-to-quality slider - it caused more confusion than it was worth\n- Each game still opens with sensible suggestions already ticked, ready for the Apply button\n- Change any individual setting yourself under All settings, the same as before\n- Everything else is unchanged: driver settings, confirmation before applying, and undo from History",
     "released":  "2026-10-16"
 }

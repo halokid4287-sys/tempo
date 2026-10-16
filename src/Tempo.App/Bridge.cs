@@ -269,11 +269,6 @@ public class Bridge : IDisposable
                 OpenVendorPanel(vendor);
                 return true;
             }
-            case "logDiag":
-            {
-                Tempo.Core.Logging.Log.Write("ui-diag", p.GetProperty("msg").GetString() ?? "");
-                return true;
-            }
             case "appVersion":
                 return new { version = UpdateService.CurrentVersion() };
             case "whatsNew":

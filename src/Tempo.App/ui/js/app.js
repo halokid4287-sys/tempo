@@ -774,20 +774,10 @@ $("#btn-rescan").addEventListener("click", async () => {
 let GAMES = [];
 let GAME = null;          // currently open game
 let GPROFILE = null;      // its settings profile
-let GPRESET = 50;        // 0 = all performance, 100 = all quality
-const gBalance = new Map();   // per game — the slider must NOT carry between games
+// Suggestions are generated at a balanced setting. The performance/quality slider was
+// removed — people tune individual settings directly instead, which is clearer.
+const GPRESET = 50;
 const gEdits = new Map(); // key -> chosen value
-
-/** Describes any position on the 0–100 performance↔quality slider. */
-function balanceText(v) {
-  if (v <= 4) return ["Max performance", "Strips the most expensive effects for the highest frame rate and lowest latency. The game will look plainer."];
-  if (v <= 24) return ["Mostly performance", "Leans hard on frame rate, keeping only the cheaper visual touches."];
-  if (v <= 44) return ["Leaning performance", "Favours frame rate, but holds on to more detail than the extreme end."];
-  if (v <= 56) return ["Balanced", "A sensible middle ground — keeps the game looking good while trimming the most expensive effects."];
-  if (v <= 76) return ["Leaning quality", "Favours how the game looks, giving up some frame rate for it."];
-  if (v <= 95) return ["Mostly quality", "Close to full detail, trimming only the very heaviest effects."];
-  return ["Max quality", "Prioritises how the game looks. Expect lower frame rates, especially at high resolutions."];
-}
 
 async function scanGames(auto = false) {
   const btn = $("#btn-games-scan");
@@ -843,9 +833,6 @@ async function openGame(game) {
   gEdits.clear();
   // Each game starts balanced unless you have moved its own slider before. Carrying the
   // last game's position over made it look as though Tempo had already changed this one.
-  GPRESET = gBalance.has(game.id) ? gBalance.get(game.id) : 50;
-  $("#gd-slider").value = GPRESET;
-  paintPreset(GPRESET);
   $("#games-library").style.display = "none";
   $("#game-detail").style.display = "";
   $("#gd-name").textContent = game.name;
@@ -875,14 +862,6 @@ async function loadGameProfile() {
   }
 }
 
-/** Instant, purely-visual feedback while the slider is being dragged. */
-function paintPreset(v) {
-  const [label, desc] = balanceText(v);
-  $("#gd-preset-label").textContent = `${label} · ${100 - v}% performance / ${v}% quality`;
-  $("#gd-preset-desc").textContent = desc;
-  // fill the track up to the handle so the position reads at a glance
-  $("#gd-slider").style.setProperty("--fill", v + "%");
-}
 
 /**
  * Ticks everything the slider is suggesting, so Apply is ready the moment you move it.
@@ -899,7 +878,6 @@ function selectSuggestions() {
 
 function renderGameProfile() {
   const p = GPROFILE;
-  paintPreset(GPRESET);
   selectSuggestions();
 
   // honest notes about this game
@@ -928,7 +906,7 @@ function renderGameTable() {
   const tb = $("#gd-table").querySelector("tbody");
   $("#gd-change-count").textContent = rows.length ? `(${rows.length})` : "";
   if (!rows.length) {
-    tb.innerHTML = `<tr><td colspan="5" class="cmp-empty">Nothing to change — this game already matches a <b>${esc(balanceText(GPRESET)[0].toLowerCase())}</b> setup.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="5" class="cmp-empty">Nothing to suggest — this game is already set up sensibly. You can still change anything yourself below.</td></tr>`;
     syncGameApply();
     return;
   }
@@ -1037,101 +1015,6 @@ $("#btn-gd-launch").addEventListener("click", async () => {
   try { await call("launchGame", { id: GAME.id }); toast("Launching", GAME.name + " is starting."); }
   catch (e) { toast("Couldn't launch it", e.message, "warn"); }
 });
-/** Applies a slider position: repaint immediately, then reload the (slow) settings underneath. */
-async function commitPreset(v) {
-  v = Math.max(0, Math.min(100, Math.round(v)));
-  $("#gd-slider").value = v;
-  paintPreset(v);
-  if (v === GPRESET) return;
-  GPRESET = v;
-  if (GAME) gBalance.set(GAME.id, v);   // remembered for this game only
-  gEdits.clear();
-  await loadGameProfile();
-}
-
-// The slider is driven by explicit pointer capture rather than relying on the browser's
-// built-in range dragging, which did not track the mouse reliably inside the app's
-// embedded browser. Capturing the pointer ourselves makes dragging behave the same
-// everywhere, and keeps working if the cursor strays outside the control mid-drag.
-(() => {
-  const slider = $("#gd-slider");
-  let dragging = false;
-
-  const levelAt = (clientX) => {
-    const r = slider.getBoundingClientRect();
-    if (r.width === 0) return GPRESET;
-    const pct = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-    return Math.round(pct * 100);   // anywhere from 0 to 100
-  };
-
-  // --- temporary instrumentation: find out which events actually arrive ---
-  const diag = { pointerdown: 0, pointermove: 0, pointerup: 0, mousedown: 0, mousemove: 0, mouseup: 0, input: 0, captured: null, xs: [] };
-  ["pointerdown", "pointermove", "pointerup", "mousedown", "mousemove", "mouseup", "input"]
-    .forEach((t) => slider.addEventListener(t, (e) => {
-      diag[t]++;
-      if (t === "pointermove" || t === "mousemove") { if (diag.xs.length < 6) diag.xs.push(Math.round(e.clientX)); }
-    }, true));
-  window.__sliderDiag = diag;
-  function reportDiag(where) {
-    const r = slider.getBoundingClientRect();
-    const cs = getComputedStyle(slider);
-    const msg = `${where} move=${diag.pointermove} capture=${diag.captured} value=${slider.value} ` +
-                `| rect(l=${Math.round(r.left)},w=${Math.round(r.width)},h=${Math.round(r.height)}) ` +
-                `disabled=${slider.disabled} min=${slider.min} max=${slider.max} step=${slider.step} ` +
-                `pe=${cs.pointerEvents} vis=${cs.visibility} ` +
-                `| assignTest=${(() => { const b = slider.value; slider.value = "2"; const got = slider.value; slider.value = b; return got; })()} ` +
-                `| probe: ${probe.join(" ; ") || "(none)"}`;
-    probe = [];
-    try { call("logDiag", { msg }); } catch { }
-  }
-
-  slider.addEventListener("pointerdown", (e) => {
-    dragging = true;
-    try { slider.setPointerCapture(e.pointerId); diag.captured = slider.hasPointerCapture(e.pointerId); }
-    catch (err) { diag.captured = "threw:" + err.message; }
-    const v = levelAt(e.clientX);
-    slider.value = v;
-    paintPreset(v);
-    e.preventDefault();
-  });
-
-  slider.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    const v = levelAt(e.clientX);
-    if (+slider.value !== v) { slider.value = v; paintPreset(v); }   // cheap: label only
-  });
-
-  // fall back to plain mouse events in case pointer events are not delivered while a
-  // button is held — this is the exact behaviour the instrumentation is here to prove
-  slider.addEventListener("mousemove", (e) => {
-    if (!dragging || diag.pointermove > 0) return;   // pointer events are working; ignore
-    const v = levelAt(e.clientX);
-    if (+slider.value !== v) { slider.value = v; paintPreset(v); }
-  });
-  document.addEventListener("mousemove", (e) => {
-    if (!dragging || diag.pointermove > 0) return;
-    const v = levelAt(e.clientX);
-    if (+slider.value !== v) { slider.value = v; paintPreset(v); }
-  });
-  document.addEventListener("mouseup", () => { if (dragging) { dragging = false; reportDiag("drag-end(doc)"); commitPreset(+slider.value); } });
-
-  const finish = (e) => {
-    if (!dragging) return;
-    dragging = false;
-    try { slider.releasePointerCapture(e.pointerId); } catch { }
-    reportDiag("drag-end");
-    commitPreset(+slider.value);
-  };
-  slider.addEventListener("pointerup", finish);
-  slider.addEventListener("pointercancel", finish);
-
-  // keyboard (arrow keys) still goes through the native change event
-  slider.addEventListener("change", () => { if (!dragging) commitPreset(+slider.value); });
-
-  // the three labels are shortcuts to the extremes and the midpoint
-  $$(".slider-ticks span").forEach((tick, i) =>
-    tick.addEventListener("click", () => commitPreset(i * 50)));
-})();
 $("#btn-games-add").addEventListener("click", async () => {
   try {
     const r = await call("pickGameExe");
